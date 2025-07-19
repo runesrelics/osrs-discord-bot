@@ -130,16 +130,17 @@ class VouchView:
         self.ticket_actions = ticket_actions
         self.channel = channel
         self.listing_message = listing_message
-        self.users = {user1.id: user1, user2.id: user2}
+        self.users = {str(user1.id): user1, str(user2.id): user2}
         self.vouches = {}
 
     def submit_vouch(self, user_id, stars, comment):
-        self.vouches[user_id] = {"stars": stars, "comment": comment}
-        if user_id not in vouch_data:
-            vouch_data[user_id] = {"total_stars": 0, "count": 0, "comments": []}
-        vouch_data[user_id]["total_stars"] += stars
-        vouch_data[user_id]["count"] += 1
-        vouch_data[user_id]["comments"].append(comment)
+        user_id_str = str(user_id)
+        self.vouches[user_id_str] = {"stars": stars, "comment": comment}
+        if user_id_str not in vouch_data:
+            vouch_data[user_id_str] = {"total_stars": 0, "count": 0, "comments": []}
+        vouch_data[user_id_str]["total_stars"] += stars
+        vouch_data[user_id_str]["count"] += 1
+        vouch_data[user_id_str]["comments"].append(comment)
 
         # Save to file after each update
         with open(VOUCH_FILE, "w") as f:
@@ -188,7 +189,7 @@ class StarButton(Button):
             child.disabled = True
         await interaction.message.edit(view=self.star_view)
 
-        user_to_vouch = next(u for uid, u in self.star_view.vouch_view.users.items() if uid != interaction.user.id)
+        user_to_vouch = next(u for uid, u in self.star_view.vouch_view.users.items() if uid != str(interaction.user.id))
         await interaction.response.send_modal(CommentModal(self.star_view.vouch_view, interaction.user, self.stars, user_to_vouch))
 
 class CommentModal(Modal, title="Submit Your Vouch Comment"):
@@ -205,7 +206,7 @@ class CommentModal(Modal, title="Submit Your Vouch Comment"):
     async def on_submit(self, interaction: discord.Interaction):
         comment_value = self.comment.value.strip() or "No comment"
         self.vouch_view.submit_vouch(self.user_submitting.id, self.star_rating, comment_value)
-        await interaction.response.send_message("✅ Your vouch has been recorded! Waitng for other party to vouch.", ephemeral=True)
+        await interaction.response.send_message("✅ Your vouch has been recorded! Waiting for other party to vouch.", ephemeral=True)
         if self.vouch_view.all_vouches_submitted():
             await self.vouch_view.finish_vouching()
 
@@ -374,32 +375,6 @@ class ListingView(View):
         await interaction.response.send_message("🗑️ Listing deleted.", ephemeral=True)
 
 
-
-class EditListingModal(Modal, title="Edit Your Listing"):
-    def __init__(self, message: discord.Message, lister: discord.User):
-        super().__init__()
-        self.message = message
-        self.lister = lister
-
-        self.description = TextInput(label="New Description", style=discord.TextStyle.paragraph, required=True)
-        self.price = TextInput(label="New Price / Value", required=True)
-
-        self.add_item(self.description)
-        self.add_item(self.price)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        embed = self.message.embeds[0]
-        embed.description = self.description.value
-
-        # Update the "Value" field in the embed if it exists
-        for field in embed.fields:
-            if field.name.lower() == "value":
-                field.value = self.price.value
-                break
-
-        await self.message.edit(embed=embed)
-        await interaction.response.send_message("✅ Listing updated!", ephemeral=True)
-
 # --- INTERACTION HANDLER ---
 
 @bot.event
@@ -471,7 +446,7 @@ async def vouchleader(interaction: discord.Interaction):
     embed.set_footer(text="Based on average rating and number of vouches")
 
     for user_id, data in sorted_users:
-        user = interaction.guild.get_member(user_id)
+        user = interaction.guild.get_member(int(user_id))
         if user:
             avg_stars = data["total_stars"] / data["count"]
             embed.add_field(
@@ -484,25 +459,25 @@ async def vouchleader(interaction: discord.Interaction):
 
 @bot.tree.command(name="vouchcheck", description="Check how many vouches you have.")
 async def vouchcheck(interaction: discord.Interaction):
-
     user_id = str(interaction.user.id)
-    try:
-        with open("vouches.json", "r") as f:
-            vouch_data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        vouch_data = {}
+    data = vouch_data.get(user_id)
+    if not data:
+        await interaction.response.send_message("📊 You have no recorded vouches yet.", ephemeral=True)
+        return
 
-    vouches = vouch_data.get(user_id, 0)
-    await interaction.response.send_message(f"📊 You currently have **{vouches}** vouches.", ephemeral=True)
+    avg_stars = data["total_stars"] / data["count"] if data["count"] > 0 else 0
+    await interaction.response.send_message(
+        f"📊 You currently have **{data['count']}** vouches with an average rating of **{avg_stars:.2f}⭐**.",
+        ephemeral=True
+    )
+
+# --- READY EVENT ---
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
-    try:
-        synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} commands.")
-    except Exception as e:
-        print(f"Error syncing commands: {e}")
+    await bot.tree.sync()
+    print("Slash commands synced.")
 
 
 # --- RUN ---
