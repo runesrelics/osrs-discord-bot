@@ -243,6 +243,22 @@ async def setup(ctx):
     embed.set_thumbnail(url=BRANDING_IMAGE)
     await ctx.send(embed=embed, view=view)
 
+@bot.event
+async def on_interaction(interaction: discord.Interaction):
+    if interaction.type != discord.InteractionType.component:
+        return
+
+    custom_id = interaction.data.get("custom_id")
+
+    if custom_id == "account_listing":
+        await interaction.response.send_modal(AccountListingModal())
+    elif custom_id == "gp_listing":
+        await interaction.response.send_modal(GPListingModal())
+    elif custom_id and custom_id.startswith("buy_"):
+        # Implement your buy button logic here if you had any
+        await interaction.response.send_message("Buy button clicked!", ephemeral=True)
+
+
 # --- START ---
 TOKEN = os.getenv("RELLY_DISCORD")
 bot.run(TOKEN)
