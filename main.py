@@ -326,7 +326,7 @@ class ListingView(View):
         super().__init__(timeout=None)
         self.lister = lister
 
-    @discord.ui.button(label="✅", style=discord.ButtonStyle.success, custom_id=f"buy_{lister.id}"))
+    buy_button = Button(label="✅", style=discord.ButtonStyle.success, custom_id=f"buy_{lister.id}"))
     async def buy_button(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_message("Buy button clicked.", ephemeral=True)
 
