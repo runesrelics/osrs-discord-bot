@@ -326,27 +326,53 @@ class ListingView(View):
         super().__init__(timeout=None)
         self.lister = lister
 
-        # Add buttons dynamically with the lister id embedded
-        self.add_item(Button(label="✅", style=discord.ButtonStyle.success, custom_id=f"buy_{lister.id}"))
-        self.add_item(Button(emoji="✏️", style=discord.ButtonStyle.secondary, custom_id="edit_listing"))
-        self.add_item(Button(emoji="❌", style=discord.ButtonStyle.danger, custom_id="delete_listing"))
+        # ✅ BUY button with dynamic custom_id (includes lister ID)
+        buy_button = Button(
+            label="✅",
+            style=discord.ButtonStyle.success,
+            custom_id=f"buy_{lister.id}"
+        )
+        buy_button.callback = self.buy_button_callback
+        self.add_item(buy_button)
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # ✏️ EDIT button
+        edit_button = Button(
+            emoji="✏️",
+            style=discord.ButtonStyle.secondary,
+            custom_id="edit_listing"
+        )
+        edit_button.callback = self.edit_listing
+        self.add_item(edit_button)
+
+        # ❌ DELETE button
+        delete_button = Button(
+            emoji="❌",
+            style=discord.ButtonStyle.danger,
+            custom_id="delete_listing"
+        )
+        delete_button.callback = self.delete_listing
+        self.add_item(delete_button)
+
+    # ✅ BUY button callback - only acknowledges interaction
+    async def buy_button_callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message("Processing your purchase...", ephemeral=True)
+        # Ticket creation is handled in on_interaction via custom_id="buy_<lister_id>"
+
+    # ✏️ EDIT button logic
+    async def edit_listing(self, interaction: discord.Interaction):
         if interaction.user.id != self.lister.id:
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
-            return False
-        return True
+            return
+        await interaction.response.send_modal(EditListingModal(interaction.message, self.lister))
 
-    async def on_interaction(self, interaction: discord.Interaction):
-        custom_id = interaction.data.get("custom_id")
+    # ❌ DELETE button logic
+    async def delete_listing(self, interaction: discord.Interaction):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("You can't use this button.", ephemeral=True)
+            return
+        await interaction.message.delete()
+        await interaction.response.send_message("🗑️ Listing deleted.", ephemeral=True)
 
-        if custom_id == f"buy_{self.lister.id}":
-            await interaction.response.send_message("Buy button clicked.", ephemeral=True)
-        elif custom_id == "edit_listing":
-            await interaction.response.send_modal(EditListingModal(interaction.message, self.lister))
-        elif custom_id == "delete_listing":
-            await interaction.message.delete()
-            await interaction.response.send_message("🗑️ Listing deleted.", ephemeral=True)
 
 
 class EditListingModal(Modal, title="Edit Your Listing"):
