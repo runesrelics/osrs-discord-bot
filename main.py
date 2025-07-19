@@ -278,5 +278,5 @@ async def setup(ctx):
     await ctx.send(embed=embed, view=view)
 
 # --- START ---
-TOKEN = os.getenv("TRADE_DISCORD")
+TOKEN = os.getenv("RELLY_DISCORD")
 bot.run(TOKEN)
