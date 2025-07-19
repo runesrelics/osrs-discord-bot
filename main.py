@@ -4,6 +4,16 @@ from discord.ext import commands
 from discord.ui import View, Button, Modal, TextInput
 import io
 from datetime import datetime
+import json
+
+VOUCH_FILE = "vouches.json"
+
+# Load vouches from file if exists
+if os.path.exists(VOUCH_FILE):
+    with open(VOUCH_FILE, "r") as f:
+        vouch_data = json.load(f)
+else:
+    vouch_data = {}
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -34,15 +44,13 @@ CHANNELS = {
 EMBED_COLOR = discord.Color.gold()
 BRANDING_IMAGE = "https://i.postimg.cc/ZYvXG4Ms/Runes-and-Relics.png"
 
-vouch_data = {}
-
 # Helper to cleanup messages from the bot
 async def cleanup_bot_messages(channel, limit=100):
     async for msg in channel.history(limit=limit):
         if msg.author == bot.user:
             try:
                 await msg.delete()
-            except:
+            except discord.Forbidden:
                 pass
 
 class TicketActions(View):
@@ -105,8 +113,8 @@ class TicketActions(View):
 
         for user in self.users.values():
             try:
-                await user.send(content=f"📄 Transcript from your completed trade in `{channel.name}`.", file=discord_file)
                 transcript_file.seek(0)
+                await user.send(content=f"📄 Transcript from your completed trade in `{channel.name}`.", file=discord_file)
             except discord.Forbidden:
                 await channel.send(f"⚠️ Could not DM transcript to {user.mention}.")
 
@@ -132,6 +140,10 @@ class VouchView:
         vouch_data[user_id]["total_stars"] += stars
         vouch_data[user_id]["count"] += 1
         vouch_data[user_id]["comments"].append(comment)
+
+        # Save to file after each update
+        with open(VOUCH_FILE, "w") as f:
+            json.dump(vouch_data, f, indent=4)
 
     def all_vouches_submitted(self):
         return len(self.vouches) == 2
@@ -197,8 +209,7 @@ class CommentModal(Modal, title="Submit Your Vouch Comment"):
         if self.vouch_view.all_vouches_submitted():
             await self.vouch_view.finish_vouching()
 
-
-# --- MODALS for Listings (no change) ---
+# --- MODALS for Listings ---
 
 class AccountListingModal(Modal, title="List an OSRS Account"):
     category = TextInput(label="Account Type (Main / PvP / Ironman)", required=True)
@@ -231,8 +242,7 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
         listing_embed.set_thumbnail(url=BRANDING_IMAGE)
         listing_embed.add_field(name="Value", value=self.price.value)
 
-        view = View()
-        view.add_item(Button(label="🗡️ BUY", style=discord.ButtonStyle.success, custom_id=f"buy_{interaction.user.id}"))
+        view = ListingView(lister=interaction.user)
 
         listing_channel = interaction.guild.get_channel(target_channel_id)
         create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
@@ -279,7 +289,6 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
 
         await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
 
-
 class GPListingModal(Modal, title="List OSRS GP"):
     amount = TextInput(label="Amount", placeholder="e.g. 500M", required=True)
     payment = TextInput(label="Accepted payment methods", placeholder="BTC, OS, PayPal...")
@@ -297,8 +306,7 @@ class GPListingModal(Modal, title="List OSRS GP"):
         listing_embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         listing_embed.set_thumbnail(url=BRANDING_IMAGE)
 
-        view = View()
-        view.add_item(Button(label="💰 BUY", style=discord.ButtonStyle.success, custom_id=f"buy_{interaction.user.id}"))
+        view = ListingView(lister=interaction.user)
 
         listing_channel = interaction.guild.get_channel(target_channel_id)
         msg = await listing_channel.send(embed=listing_embed, view=view)
@@ -313,6 +321,54 @@ class GPListingModal(Modal, title="List OSRS GP"):
 
         await interaction.response.send_message("✅ Your GP listing has been posted!", ephemeral=True)
 
+class ListingView(View):
+    def __init__(self, lister: discord.User):
+        super().__init__(timeout=None)
+        self.lister = lister
+
+    @discord.ui.button(label="✅", style=discord.ButtonStyle.success, custom_id="buy")
+    async def buy_button(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_message("Buy button clicked.", ephemeral=True)
+
+    @discord.ui.button(emoji="✏️", style=discord.ButtonStyle.secondary, custom_id="edit_listing")
+    async def edit_listing(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("You can't use this button.", ephemeral=True)
+            return
+        await interaction.response.send_modal(EditListingModal(interaction.message, self.lister))
+
+    @discord.ui.button(emoji="❌", style=discord.ButtonStyle.danger, custom_id="delete_listing")
+    async def delete_listing(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("You can't use this button.", ephemeral=True)
+            return
+        await interaction.message.delete()
+        await interaction.response.send_message("🗑️ Listing deleted.", ephemeral=True)
+
+class EditListingModal(Modal, title="Edit Your Listing"):
+    def __init__(self, message: discord.Message, lister: discord.User):
+        super().__init__()
+        self.message = message
+        self.lister = lister
+
+        self.description = TextInput(label="New Description", style=discord.TextStyle.paragraph, required=True)
+        self.price = TextInput(label="New Price / Value", required=True)
+
+        self.add_item(self.description)
+        self.add_item(self.price)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = self.message.embeds[0]
+        embed.description = self.description.value
+
+        # Update the "Value" field in the embed if it exists
+        for field in embed.fields:
+            if field.name.lower() == "value":
+                field.value = self.price.value
+                break
+
+        await self.message.edit(embed=embed)
+        await interaction.response.send_message("✅ Listing updated!", ephemeral=True)
 
 # --- INTERACTION HANDLER ---
 
@@ -352,12 +408,10 @@ async def on_interaction(interaction: discord.Interaction):
                 overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
         ticket_channel = await interaction.guild.create_text_channel(
-    name=f"ticket-{buyer.name}-and-{lister.name}",
-    overwrites=overwrites,
-    topic="Trade ticket between buyer and seller."
-)
-
-
+            name=f"ticket-{buyer.name}-and-{lister.name}",
+            overwrites=overwrites,
+            topic="Trade ticket between buyer and seller."
+        )
 
         embed_copy = interaction.message.embeds[0]
         await ticket_channel.send(
@@ -367,7 +421,6 @@ async def on_interaction(interaction: discord.Interaction):
         )
 
         await interaction.response.send_message(f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True)
-
 
 # --- SLASH COMMANDS ---
 
@@ -399,57 +452,54 @@ async def vouchleader(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-
-@bot.tree.command(name="vouchcount", description="Show your vouch stats")
-async def vouchcount(interaction: discord.Interaction):
-    user_id = interaction.user.id
-    if user_id not in vouch_data:
-        await interaction.response.send_message("You have no vouches yet.")
+@bot.tree.command(name="vouch", description="Submit a vouch for a user")
+async def vouch(interaction: discord.Interaction, user: discord.User):
+    if interaction.user.id == user.id:
+        await interaction.response.send_message("You cannot vouch for yourself.", ephemeral=True)
         return
 
-    data = vouch_data[user_id]
-    avg_stars = data["total_stars"] / data["count"]
-    embed = discord.Embed(
-        title="📊 Runes & Relics Vouches",
-        description=f"⭐ Average Rating: {avg_stars:.2f}\n📝 Total Vouches: {data['count']}",
-        color=EMBED_COLOR
-    )
-    embed.set_image(url="https://i.postimg.cc/0jHw8mRV/glowww.png")
+    modal = VouchModal(target=user)
+    await interaction.response.send_modal(modal)
 
-    await interaction.response.send_message(embed=embed)
+class VouchModal(Modal, title="Submit a Vouch"):
+    stars = TextInput(label="Star rating (1-5)", placeholder="Enter a number 1-5", required=True, max_length=1)
+    comment = TextInput(label="Comment", style=discord.TextStyle.paragraph, required=False)
 
+    def __init__(self, target):
+        super().__init__()
+        self.target = target
 
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            stars = int(self.stars.value)
+            if not (1 <= stars <= 5):
+                raise ValueError
+        except ValueError:
+            await interaction.response.send_message("Stars must be an integer between 1 and 5.", ephemeral=True)
+            return
 
-# --- SETUP COMMAND ---
+        comment_value = self.comment.value.strip() or "No comment"
 
-@bot.command()
-async def setup(ctx):
-    if ctx.channel.id != CHANNELS["create_trade"]:
-        return await ctx.send("Run this in the create-a-trade channel only.")
+        if self.target.id not in vouch_data:
+            vouch_data[self.target.id] = {"total_stars": 0, "count": 0, "comments": []}
 
-    view = View()
-    view.add_item(Button(label="🗡️ List OSRS Account", style=discord.ButtonStyle.primary, custom_id="account_listing"))
-    view.add_item(Button(label="💰 List OSRS GP", style=discord.ButtonStyle.primary, custom_id="gp_listing"))
+        vouch_data[self.target.id]["total_stars"] += stars
+        vouch_data[self.target.id]["count"] += 1
+        vouch_data[self.target.id]["comments"].append(comment_value)
 
-    embed = discord.Embed(
-        title="📜 Create a Trade Listing",
-        description="Select one of the options below to list your account or OSRS GP.",
-        color=EMBED_COLOR
-    )
-    embed.set_thumbnail(url=BRANDING_IMAGE)
-    await ctx.send(embed=embed, view=view)
+        with open(VOUCH_FILE, "w") as f:
+            json.dump(vouch_data, f, indent=4)
 
-
-# --- ON READY ---
+        await interaction.response.send_message(f"✅ Your vouch for {self.target.display_name} has been recorded.", ephemeral=True)
 
 @bot.event
 async def on_ready():
-    print(f"Bot is live as {bot.user}.")
+    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
     try:
-        await bot.tree.sync()
-        print("Slash commands synced (2 commands).")
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} commands.")
     except Exception as e:
-        print(f"Error syncing slash commands: {e}")
+        print(f"Error syncing commands: {e}")
 
 
 # --- RUN ---
