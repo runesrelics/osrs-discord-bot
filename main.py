@@ -482,8 +482,9 @@ async def vouchleader(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-@app_commands.command(name="vouchcheck", description="Check how many vouches you have.")
+@bot.tree.command(name="vouchcheck", description="Check how many vouches you have.")
 async def vouchcheck(interaction: discord.Interaction):
+
     user_id = str(interaction.user.id)
     try:
         with open("vouches.json", "r") as f:
