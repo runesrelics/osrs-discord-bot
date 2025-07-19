@@ -205,7 +205,7 @@ class CommentModal(Modal, title="Submit Your Vouch Comment"):
     async def on_submit(self, interaction: discord.Interaction):
         comment_value = self.comment.value.strip() or "No comment"
         self.vouch_view.submit_vouch(self.user_submitting.id, self.star_rating, comment_value)
-        await interaction.response.send_message("✅ Your vouch has been recorded!", ephemeral=True)
+        await interaction.response.send_message("✅ Your vouch has been recorded! Waitng for other party to vouch.", ephemeral=True)
         if self.vouch_view.all_vouches_submitted():
             await self.vouch_view.finish_vouching()
 
@@ -482,45 +482,17 @@ async def vouchleader(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="vouch", description="Submit a vouch for a user")
-async def vouch(interaction: discord.Interaction, user: discord.User):
-    if interaction.user.id == user.id:
-        await interaction.response.send_message("You cannot vouch for yourself.", ephemeral=True)
-        return
+@app_commands.command(name="vouchcheck", description="Check how many vouches you have.")
+async def vouchcheck(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
+    try:
+        with open("vouches.json", "r") as f:
+            vouch_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        vouch_data = {}
 
-    modal = VouchModal(target=user)
-    await interaction.response.send_modal(modal)
-
-class VouchModal(Modal, title="Submit a Vouch"):
-    stars = TextInput(label="Star rating (1-5)", placeholder="Enter a number 1-5", required=True, max_length=1)
-    comment = TextInput(label="Comment", style=discord.TextStyle.paragraph, required=False)
-
-    def __init__(self, target):
-        super().__init__()
-        self.target = target
-
-    async def on_submit(self, interaction: discord.Interaction):
-        try:
-            stars = int(self.stars.value)
-            if not (1 <= stars <= 5):
-                raise ValueError
-        except ValueError:
-            await interaction.response.send_message("Stars must be an integer between 1 and 5.", ephemeral=True)
-            return
-
-        comment_value = self.comment.value.strip() or "No comment"
-
-        if self.target.id not in vouch_data:
-            vouch_data[self.target.id] = {"total_stars": 0, "count": 0, "comments": []}
-
-        vouch_data[self.target.id]["total_stars"] += stars
-        vouch_data[self.target.id]["count"] += 1
-        vouch_data[self.target.id]["comments"].append(comment_value)
-
-        with open(VOUCH_FILE, "w") as f:
-            json.dump(vouch_data, f, indent=4)
-
-        await interaction.response.send_message(f"✅ Your vouch for {self.target.display_name} has been recorded.", ephemeral=True)
+    vouches = vouch_data.get(user_id, 0)
+    await interaction.response.send_message(f"📊 You currently have **{vouches}** vouches.", ephemeral=True)
 
 @bot.event
 async def on_ready():
