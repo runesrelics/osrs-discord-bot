@@ -352,7 +352,7 @@ async def on_interaction(interaction: discord.Interaction):
                 overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
         ticket_channel = await interaction.guild.create_text_channel(
-    name=f"ticket-{buyer.name}-and-{lister.name}"
+    name=f"ticket-{buyer.name}-and-{lister.name}",
     overwrites=overwrites,
     topic="Trade ticket between buyer and seller."
 )
