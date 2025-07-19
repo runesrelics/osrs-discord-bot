@@ -1,7 +1,7 @@
 import os
 import discord
 from discord.ext import commands
-from discord.ui import View, Button, Select, Modal, TextInput
+from discord.ui import View, Button, Modal, TextInput
 import io
 from datetime import datetime
 
@@ -27,195 +27,63 @@ CHANNELS = {
         "gp": 1393727911743193239,
     },
     "create_trade": 1395778950353129472,
-    "archive": 1395791949969231945,  # your actual archive channel ID here
-    "vouch_post": 1383401756335149087,  # channel to post vouches
+    "archive": 1395791949969231945,  # archive channel ID
+    "vouch_post": 1383401756335149087  # vouch post channel ID
 }
 
-# Emojis and color scheme
 EMBED_COLOR = discord.Color.gold()
 BRANDING_IMAGE = "https://i.postimg.cc/ZYvXG4Ms/Runes-and-Relics.png"
 
-# In-memory vouch data storage (user_id: {stars: [...], comments: [...], count: int})
+# In-memory vouch storage
+# Structure: { user_id: {"total_stars": int, "count": int, "comments": [str]} }
 vouch_data = {}
 
-
-# --- VOUCH MODAL ---
-
-class VouchModal(Modal, title="Submit Your Vouch"):
-    def __init__(self, vouch_view, user_submitting, user_to_vouch):
-        super().__init__()
-        self.vouch_view = vouch_view
-        self.user_submitting = user_submitting
-        self.user_to_vouch = user_to_vouch
-
-        self.stars = Select(
-            placeholder="Select star rating",
-            options=[
-                discord.SelectOption(label="1 ⭐", value="1"),
-                discord.SelectOption(label="2 ⭐⭐", value="2"),
-                discord.SelectOption(label="3 ⭐⭐⭐", value="3"),
-                discord.SelectOption(label="4 ⭐⭐⭐⭐", value="4"),
-                discord.SelectOption(label="5 ⭐⭐⭐⭐⭐", value="5"),
-            ],
-            min_values=1,
-            max_values=1,
-            custom_id="star_select"
-        )
-        self.add_item(self.stars)
-
-        self.comment = TextInput(
-            label="Comment",
-            style=discord.TextStyle.paragraph,
-            required=False,
-            max_length=200,
-            placeholder="Leave a comment (optional)"
-        )
-        self.add_item(self.comment)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        star_value = int(self.stars.values[0])
-        comment_value = self.comment.value.strip() or "No comment"
-
-        # Save vouch in vouch_view's storage
-        self.vouch_view.submit_vouch(
-            user_id=self.user_submitting.id,
-            stars=star_value,
-            comment=comment_value
-        )
-
-        await interaction.response.send_message("✅ Your vouch has been recorded!", ephemeral=True)
-
-        # Check if both submitted; if yes, finalize
-        if self.vouch_view.all_vouches_submitted():
-            await self.vouch_view.finish_vouching()
-
-
-# --- VOUCH VIEW ---
-
-class VouchView(View):
-    def __init__(self, user1, user2, ticket_channel, listing_message):
-        super().__init__(timeout=None)
-        self.users = {user1.id: user1, user2.id: user2}
-        self.ticket_channel = ticket_channel
-        self.listing_message = listing_message
-
-        # Store vouches keyed by user ID who submitted the vouch
-        self.vouches = {}
-
-    def submit_vouch(self, user_id, stars, comment):
-        self.vouches[user_id] = {
-            "stars": stars,
-            "comment": comment
-        }
-
-    def all_vouches_submitted(self):
-        # Both users must have submitted
-        return all(uid in self.vouches for uid in self.users.keys())
-
-    async def finish_vouching(self):
-        # Post vouches summary in vouch channel
-        vouch_channel = self.ticket_channel.guild.get_channel(CHANNELS["vouch_post"])
-        if not vouch_channel:
-            print("Vouch post channel not found!")
-            return
-
-        embed = discord.Embed(
-            title=f"Vouches for trade in #{self.ticket_channel.name}",
-            color=EMBED_COLOR,
-            timestamp=datetime.utcnow()
-        )
-
-        for submitter_id, vouch in self.vouches.items():
-            submitter = self.users[submitter_id]
-            # The user to whom the vouch is directed is the *other* user in the trade
-            vouched_user = next(user for uid, user in self.users.items() if uid != submitter_id)
-
-            embed.add_field(
-                name=f"From {submitter.display_name} to {vouched_user.display_name}",
-                value=f"Stars: {'⭐' * vouch['stars']}\nComment: {vouch['comment']}",
-                inline=False
-            )
-
-            # Update global vouch data for the vouched user
-            uid = vouched_user.id
-            if uid not in vouch_data:
-                vouch_data[uid] = {"stars": [], "comments": [], "count": 0}
-            vouch_data[uid]["stars"].append(vouch['stars'])
-            vouch_data[uid]["comments"].append(vouch['comment'])
-            vouch_data[uid]["count"] += 1
-
-        await vouch_channel.send(embed=embed)
-
-        # Archive the ticket channel and delete listing message as before
-        await TicketActions.archive_ticket_static(self.ticket_channel, self.listing_message)
-
-
-# --- UPDATED TicketActions VIEW ---
+# --- TICKET ACTIONS ---
 
 class TicketActions(View):
-    def __init__(self, listing_message, user1=None, user2=None):
+    def __init__(self, message, user1, user2):
         super().__init__(timeout=None)
-        self.listing_message = listing_message
+        self.message = message
+        self.users = {user1.id: user1, user2.id: user2}
         self.completions = set()
-        # Save the two users explicitly
-        if user1 and user2:
-            self.users = {user1.id: user1, user2.id: user2}
-        else:
-            self.users = {}
-
         self.vouch_view = None
 
     @discord.ui.button(label="✅ Mark as Complete", style=discord.ButtonStyle.success)
     async def complete(self, interaction: discord.Interaction, button: Button):
-        self.completions.add(interaction.user.id)
-
-        if not self.users or len(self.users) != 2:
-            await interaction.response.send_message("Error: Ticket must have exactly 2 users.", ephemeral=True)
+        if interaction.user.id not in self.users:
+            await interaction.response.send_message("You are not part of this trade.", ephemeral=True)
             return
 
-        if len(self.completions) >= 2 and all(uid in self.completions for uid in self.users.keys()):
-            # Disable complete and cancel buttons
-            for child in self.children:
-                child.disabled = True
-            await interaction.message.edit(view=self)
+        if interaction.user.id in self.completions:
+            await interaction.response.send_message("You have already marked as complete.", ephemeral=True)
+            return
 
-            user1, user2 = self.users.values()
-            await interaction.channel.send(
-                f"{user1.mention} and {user2.mention}, both marked complete! Please submit your vouch using the form below."
-            )
+        self.completions.add(interaction.user.id)
+        await interaction.response.send_message("✅ You marked the trade as complete.", ephemeral=True)
 
-            # Create and send VouchView message in channel with buttons to open modal
-            self.vouch_view = VouchView(user1, user2, interaction.channel, self.listing_message)
-
-            # Send buttons for each user to open the modal:
-            class VouchButton(Button):
-                def __init__(self, vouch_view, user):
-                    super().__init__(label=f"Submit Vouch ({user.display_name})", style=discord.ButtonStyle.primary)
-                    self.vouch_view = vouch_view
-                    self.user = user
-
-                async def callback(self, i: discord.Interaction):
-                    if i.user.id != self.user.id:
-                        await i.response.send_message("This button is not for you.", ephemeral=True)
-                        return
-                    await i.response.send_modal(VouchModal(self.vouch_view, self.user, [u for u in self.vouch_view.users.values() if u != self.user][0]))
-
-            vouch_buttons_view = View()
-            vouch_buttons_view.add_item(VouchButton(self.vouch_view, user1))
-            vouch_buttons_view.add_item(VouchButton(self.vouch_view, user2))
-
-            await interaction.channel.send("Please submit your vouch by clicking your button below:", view=vouch_buttons_view)
-            await interaction.response.send_message("Both completions received! Please submit your vouch.", ephemeral=True)
-        else:
-            await interaction.response.send_message("Waiting for the other party to confirm completion.", ephemeral=True)
+        if len(self.completions) == 2:
+            # Both users marked complete, start vouch process
+            await interaction.channel.send("✅ Both parties have marked the trade as complete.")
+            await self.start_vouching(interaction.channel)
 
     @discord.ui.button(label="❌ Cancel Trade", style=discord.ButtonStyle.danger)
     async def cancel(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id not in self.users:
+            await interaction.response.send_message("You are not part of this trade.", ephemeral=True)
+            return
         await interaction.channel.send("❌ Trade has been cancelled.")
-        await self.archive_ticket(interaction.channel, self.listing_message)
+        await self.archive_ticket(interaction.channel, self.message)
 
-    @staticmethod
-    async def archive_ticket_static(channel, listing_message):
+    async def start_vouching(self, channel):
+        # Send separate star rating messages for each user
+        user_list = list(self.users.values())
+        self.vouch_view = VouchView(self, channel, self.message, user_list[0], user_list[1])
+        star_view1 = StarRatingView(self.vouch_view, user_list[0])
+        star_view2 = StarRatingView(self.vouch_view, user_list[1])
+        await channel.send(f"{user_list[0].mention}, please select your star rating:", view=star_view1)
+        await channel.send(f"{user_list[1].mention}, please select your star rating:", view=star_view2)
+
+    async def archive_ticket(self, channel, listing_message):
         archive = channel.guild.get_channel(CHANNELS["archive"])
         if archive:
             transcript_lines = []
@@ -240,12 +108,118 @@ class TicketActions(View):
 
         await channel.delete()
 
-    async def archive_ticket(self, channel, listing_message):
-        await self.archive_ticket_static(channel, listing_message)
+
+# --- VOUCH VIEWS ---
+
+class VouchView:
+    def __init__(self, ticket_actions: TicketActions, channel: discord.TextChannel, listing_message, user1, user2):
+        self.ticket_actions = ticket_actions
+        self.channel = channel
+        self.listing_message = listing_message
+        self.users = {user1.id: user1, user2.id: user2}
+        self.vouches = {}  # user_id -> {"stars": int, "comment": str}
+
+    def submit_vouch(self, user_id, stars, comment):
+        self.vouches[user_id] = {"stars": stars, "comment": comment}
+        # Store global vouch data
+        if user_id not in vouch_data:
+            vouch_data[user_id] = {"total_stars": 0, "count": 0, "comments": []}
+        vouch_data[user_id]["total_stars"] += stars
+        vouch_data[user_id]["count"] += 1
+        vouch_data[user_id]["comments"].append(comment)
+
+    def all_vouches_submitted(self):
+        return len(self.vouches) == 2
+
+    async def finish_vouching(self):
+        # Post vouches in vouch_post channel
+        vouch_post_channel = self.channel.guild.get_channel(CHANNELS["vouch_post"])
+        if not vouch_post_channel:
+            await self.channel.send("❌ Vouch post channel not found. Cannot post vouch.")
+            return
+
+        user_list = list(self.users.values())
+
+        embed = discord.Embed(title="🛡️ New Trade Vouch", color=EMBED_COLOR, timestamp=datetime.utcnow())
+        embed.set_footer(text="Runes and Relics - Vouch System", icon_url=BRANDING_IMAGE)
+
+        for uid, user in self.users.items():
+            v = self.vouches.get(uid)
+            stars = v["stars"] if v else 0
+            comment = v["comment"] if v else "No comment"
+            embed.add_field(
+                name=f"{user.display_name} ({stars}⭐)",
+                value=comment,
+                inline=False,
+            )
+
+        await vouch_post_channel.send(embed=embed)
+        await self.channel.send("✅ Both vouches received! Archiving ticket now.")
+        await self.ticket_actions.archive_ticket(self.channel, self.listing_message)
 
 
-# --- MODALS AND LISTINGS (Your existing modals unchanged) ---
+class StarRatingView(View):
+    def __init__(self, vouch_view: VouchView, user: discord.User):
+        super().__init__(timeout=None)
+        self.vouch_view = vouch_view
+        self.user = user
+        for i in range(1, 6):
+            self.add_item(StarButton(i, self))
 
+class StarButton(Button):
+    def __init__(self, stars, star_view: StarRatingView):
+        super().__init__(label=f"{stars} ⭐", style=discord.ButtonStyle.primary)
+        self.stars = stars
+        self.star_view = star_view
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.star_view.user.id:
+            await interaction.response.send_message("This is not your star rating button.", ephemeral=True)
+            return
+
+        # Disable all buttons once clicked
+        for child in self.star_view.children:
+            child.disabled = True
+        await interaction.message.edit(view=self.star_view)
+
+        # Open comment modal
+        user_to_vouch = next(u for uid, u in self.star_view.vouch_view.users.items() if uid != interaction.user.id)
+        await interaction.response.send_modal(CommentModal(self.star_view.vouch_view, interaction.user, self.stars, user_to_vouch))
+
+
+class CommentModal(Modal, title="Submit Your Vouch Comment"):
+    def __init__(self, vouch_view: VouchView, user_submitting: discord.User, star_rating: int, user_to_vouch: discord.User):
+        super().__init__()
+        self.vouch_view = vouch_view
+        self.user_submitting = user_submitting
+        self.star_rating = star_rating
+        self.user_to_vouch = user_to_vouch
+
+        self.comment = TextInput(
+            label="Comment",
+            style=discord.TextStyle.paragraph,
+            required=False,
+            max_length=200,
+            placeholder="Leave a comment (optional)"
+        )
+        self.add_item(self.comment)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        comment_value = self.comment.value.strip() or "No comment"
+
+        self.vouch_view.submit_vouch(
+            user_id=self.user_submitting.id,
+            stars=self.star_rating,
+            comment=comment_value
+        )
+
+        await interaction.response.send_message("✅ Your vouch has been recorded!", ephemeral=True)
+
+        if self.vouch_view.all_vouches_submitted():
+            await self.vouch_view.finish_vouching()
+
+
+# --- MODALS for Listings (no change) ---
 
 class AccountListingModal(Modal, title="List an OSRS Account"):
     category = TextInput(label="Account Type (Main / PvP / Ironman)", required=True)
@@ -284,7 +258,6 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
         listing_channel = interaction.guild.get_channel(target_channel_id)
         create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
 
-        # Prompt user for images
         await interaction.response.send_message(
             "Please upload up to 5 images in this channel. When finished, type 'done'.",
             ephemeral=True
@@ -366,10 +339,10 @@ class GPListingModal(Modal, title="List OSRS GP"):
 
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
-    if not interaction.type == discord.InteractionType.component:
+    if interaction.type != discord.InteractionType.component:
         return
 
-    custom_id = interaction.data["custom_id"]
+    custom_id = interaction.data.get("custom_id", "")
 
     if custom_id == "account_listing":
         await interaction.response.send_modal(AccountListingModal())
@@ -406,63 +379,59 @@ async def on_interaction(interaction: discord.Interaction):
         )
 
         embed_copy = interaction.message.embeds[0]
-
-        # Pass buyer and lister explicitly to TicketActions view
-        view = TicketActions(interaction.message, user1=buyer, user2=lister)
-
         await ticket_channel.send(
             f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
             embed=embed_copy,
-            view=view
+            view=TicketActions(interaction.message, buyer, lister)
         )
 
         await interaction.response.send_message(f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True)
 
 
-# --- VOUCH LEADERBOARD AND COUNT SLASH COMMANDS ---
+# --- SLASH COMMANDS ---
 
-@bot.tree.command(name="vouchleader", description="Show the top 10 vouched users")
+@bot.tree.command(name="vouchleader", description="Show top 10 vouched users")
 async def vouchleader(interaction: discord.Interaction):
     if not vouch_data:
-        await interaction.response.send_message("No vouch data available yet.", ephemeral=True)
+        await interaction.response.send_message("No vouches recorded yet.", ephemeral=True)
         return
 
-    # Sort users by count desc
-    top_users = sorted(vouch_data.items(), key=lambda x: x[1]["count"], reverse=True)[:10]
+    # Sort users by average stars descending
+    sorted_users = sorted(
+        vouch_data.items(),
+        key=lambda item: (item[1]["total_stars"] / item[1]["count"], item[1]["count"]),
+        reverse=True
+    )[:10]
 
-    embed = discord.Embed(
-        title="🏆 Vouch Leaderboard - Top 10",
-        color=EMBED_COLOR,
-        timestamp=datetime.utcnow()
-    )
-
-    for i, (user_id, data) in enumerate(top_users, 1):
+    embed = discord.Embed(title="🌟 Vouch Leaderboard - Top 10", color=EMBED_COLOR)
+    for user_id, data in sorted_users:
         user = interaction.guild.get_member(user_id)
-        if not user:
-            continue
-        avg_stars = sum(data["stars"]) / len(data["stars"]) if data["stars"] else 0
-        embed.add_field(
-            name=f"{i}. {user.display_name}",
-            value=f"Vouches: {data['count']} | Avg. Stars: {avg_stars:.2f} ⭐",
-            inline=False
-        )
+        if user:
+            avg_stars = data["total_stars"] / data["count"]
+            embed.add_field(
+                name=user.display_name,
+                value=f"⭐ {avg_stars:.2f} from {data['count']} vouches",
+                inline=False
+            )
 
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="vouchcount", description="Check your personal vouch count")
+@bot.tree.command(name="vouchcount", description="Show your vouch stats")
 async def vouchcount(interaction: discord.Interaction):
-    uid = interaction.user.id
-    if uid not in vouch_data:
+    user_id = interaction.user.id
+    if user_id not in vouch_data:
         await interaction.response.send_message("You have no vouches yet.", ephemeral=True)
         return
 
-    data = vouch_data[uid]
-    avg_stars = sum(data["stars"]) / len(data["stars"]) if data["stars"] else 0
-    await interaction.response.send_message(
-        f"You have {data['count']} vouches with an average rating of {avg_stars:.2f} ⭐.",
-        ephemeral=True
+    data = vouch_data[user_id]
+    avg_stars = data["total_stars"] / data["count"]
+    embed = discord.Embed(
+        title=f"🌟 Your Vouch Stats",
+        description=f"⭐ Average Rating: {avg_stars:.2f}\n📝 Total Vouches: {data['count']}",
+        color=EMBED_COLOR
     )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 # --- SETUP COMMAND ---
@@ -490,16 +459,14 @@ async def setup(ctx):
 @bot.event
 async def on_ready():
     print(f"Bot is live as {bot.user}.")
-
-    # Sync slash commands once ready
     try:
-        synced = await bot.tree.sync()
-        print(f"Slash commands synced ({len(synced)} commands).")
+        await bot.tree.sync()
+        print("Slash commands synced (2 commands).")
     except Exception as e:
-        print(f"Failed to sync slash commands: {e}")
+        print(f"Error syncing slash commands: {e}")
 
 
-# --- RUN BOT ---
+# --- RUN ---
 
-TOKEN = os.getenv("RELLY_DISCORD") or os.getenv("DISCORD_TOKEN")
+TOKEN = os.getenv("RELLY_DISCORD")
 bot.run(TOKEN)
