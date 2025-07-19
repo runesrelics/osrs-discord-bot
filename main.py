@@ -493,5 +493,5 @@ async def on_ready():
 
 # --- RUN BOT ---
 
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = os.getenv("RELLY_DISCORD")
 bot.run(TOKEN)
