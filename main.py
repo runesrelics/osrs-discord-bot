@@ -351,11 +351,12 @@ async def on_interaction(interaction: discord.Interaction):
             if role:
                 overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
-        ticket_channel = await interaction.guild.create_text_channel(
-            name=f"ticket-{buyer.name}",
-            overwrites=overwrites,
-            topic="Trade ticket between buyer and seller."
-        )
+ticket_channel = await interaction.guild.create_text_channel(
+    name=f"ticket-{buyer.name.lower().replace(' ', '-')}-and-{lister.name.lower().replace(' ', '-')}",
+    overwrites=overwrites,
+    topic="Trade ticket between buyer and seller."
+)
+
 
         embed_copy = interaction.message.embeds[0]
         await ticket_channel.send(
