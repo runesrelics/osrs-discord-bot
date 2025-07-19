@@ -153,30 +153,33 @@ class VouchView(View):
 # --- UPDATED TicketActions VIEW ---
 
 class TicketActions(View):
-    def __init__(self, listing_message):
+    def __init__(self, listing_message, user1=None, user2=None):
         super().__init__(timeout=None)
         self.listing_message = listing_message
         self.completions = set()
+        # Save the two users explicitly
+        if user1 and user2:
+            self.users = {user1.id: user1, user2.id: user2}
+        else:
+            self.users = {}
+
         self.vouch_view = None
 
     @discord.ui.button(label="✅ Mark as Complete", style=discord.ButtonStyle.success)
     async def complete(self, interaction: discord.Interaction, button: Button):
         self.completions.add(interaction.user.id)
 
-        # Only two users allowed in ticket (buyer + seller), get them
-        users_in_channel = [m for m in interaction.channel.members if not m.bot]
-        if len(users_in_channel) != 2:
+        if not self.users or len(self.users) != 2:
             await interaction.response.send_message("Error: Ticket must have exactly 2 users.", ephemeral=True)
             return
 
-        if len(self.completions) >= 2:
+        if len(self.completions) >= 2 and all(uid in self.completions for uid in self.users.keys()):
             # Disable complete and cancel buttons
             for child in self.children:
                 child.disabled = True
             await interaction.message.edit(view=self)
 
-            # Prompt the two users in channel to submit vouch via modal
-            user1, user2 = users_in_channel
+            user1, user2 = self.users.values()
             await interaction.channel.send(
                 f"{user1.mention} and {user2.mention}, both marked complete! Please submit your vouch using the form below."
             )
@@ -403,10 +406,14 @@ async def on_interaction(interaction: discord.Interaction):
         )
 
         embed_copy = interaction.message.embeds[0]
+
+        # Pass buyer and lister explicitly to TicketActions view
+        view = TicketActions(interaction.message, user1=buyer, user2=lister)
+
         await ticket_channel.send(
             f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
             embed=embed_copy,
-            view=TicketActions(interaction.message)
+            view=view
         )
 
         await interaction.response.send_message(f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True)
@@ -480,10 +487,11 @@ async def setup(ctx):
 
 # --- ON READY ---
 
-
 @bot.event
 async def on_ready():
     print(f"Bot is live as {bot.user}.")
+
+    # Sync slash commands once ready
     try:
         synced = await bot.tree.sync()
         print(f"Slash commands synced ({len(synced)} commands).")
@@ -493,5 +501,5 @@ async def on_ready():
 
 # --- RUN BOT ---
 
-TOKEN = os.getenv("RELLY_DISCORD")
+TOKEN = os.getenv("RELLY_DISCORD") or os.getenv("DISCORD_TOKEN")
 bot.run(TOKEN)
