@@ -329,7 +329,7 @@ class ListingView(View):
         # ✅ BUY button with dynamic custom_id (includes lister ID)
         buy_button = Button(
             label="✅",
-            style=discord.ButtonStyle.success,
+            style=discord.ButtonStyle.secondary,
             custom_id=f"buy_{lister.id}"
         )
         buy_button.callback = self.buy_button_callback
@@ -347,7 +347,7 @@ class ListingView(View):
         # ❌ DELETE button
         delete_button = Button(
             emoji="❌",
-            style=discord.ButtonStyle.danger,
+            style=discord.ButtonStyle.secondary,
             custom_id="delete_listing"
         )
         delete_button.callback = self.delete_listing
