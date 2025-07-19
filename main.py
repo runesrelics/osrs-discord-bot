@@ -372,17 +372,19 @@ async def on_interaction(interaction: discord.Interaction):
 @bot.tree.command(name="vouchleader", description="Show top 10 vouched users")
 async def vouchleader(interaction: discord.Interaction):
     if not vouch_data:
-        await interaction.response.send_message("No vouches recorded yet.", ephemeral=True)
+        await interaction.response.send_message("No vouches recorded yet.")
         return
 
-    # Sort users by average stars descending
     sorted_users = sorted(
         vouch_data.items(),
         key=lambda item: (item[1]["total_stars"] / item[1]["count"], item[1]["count"]),
         reverse=True
     )[:10]
 
-    embed = discord.Embed(title="🌟 Vouch Leaderboard - Top 10", color=EMBED_COLOR)
+    embed = discord.Embed(title="🏆 Runes & Relics Vouch Leaderboard", color=EMBED_COLOR)
+    embed.set_image(url="https://i.postimg.cc/0jHw8mRV/glowww.png")
+    embed.set_footer(text="Based on average rating and number of vouches")
+
     for user_id, data in sorted_users:
         user = interaction.guild.get_member(user_id)
         if user:
@@ -400,17 +402,20 @@ async def vouchleader(interaction: discord.Interaction):
 async def vouchcount(interaction: discord.Interaction):
     user_id = interaction.user.id
     if user_id not in vouch_data:
-        await interaction.response.send_message("You have no vouches yet.", ephemeral=True)
+        await interaction.response.send_message("You have no vouches yet.")
         return
 
     data = vouch_data[user_id]
     avg_stars = data["total_stars"] / data["count"]
     embed = discord.Embed(
-        title=f"🌟 Your Vouch Stats",
+        title="📊 Runes & Relics Vouches",
         description=f"⭐ Average Rating: {avg_stars:.2f}\n📝 Total Vouches: {data['count']}",
         color=EMBED_COLOR
     )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    embed.set_image(url="https://i.postimg.cc/0jHw8mRV/glowww.png")
+
+    await interaction.response.send_message(embed=embed)
+
 
 
 # --- SETUP COMMAND ---
