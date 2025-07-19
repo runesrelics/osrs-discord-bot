@@ -27,18 +27,23 @@ CHANNELS = {
         "gp": 1393727911743193239,
     },
     "create_trade": 1395778950353129472,
-    "archive": 1395791949969231945,  # archive channel ID
-    "vouch_post": 1383401756335149087  # vouch post channel ID
+    "archive": 1395791949969231945,
+    "vouch_post": 1383401756335149087
 }
 
 EMBED_COLOR = discord.Color.gold()
 BRANDING_IMAGE = "https://i.postimg.cc/ZYvXG4Ms/Runes-and-Relics.png"
 
-# In-memory vouch storage
-# Structure: { user_id: {"total_stars": int, "count": int, "comments": [str]} }
 vouch_data = {}
 
-# --- TICKET ACTIONS ---
+# Helper to cleanup messages from the bot
+async def cleanup_bot_messages(channel, limit=100):
+    async for msg in channel.history(limit=limit):
+        if msg.author == bot.user:
+            try:
+                await msg.delete()
+            except:
+                pass
 
 class TicketActions(View):
     def __init__(self, message, user1, user2):
@@ -62,7 +67,6 @@ class TicketActions(View):
         await interaction.response.send_message("✅ You marked the trade as complete.", ephemeral=True)
 
         if len(self.completions) == 2:
-            # Both users marked complete, start vouch process
             await interaction.channel.send("✅ Both parties have marked the trade as complete.")
             await self.start_vouching(interaction.channel)
 
@@ -75,13 +79,11 @@ class TicketActions(View):
         await self.archive_ticket(interaction.channel, self.message)
 
     async def start_vouching(self, channel):
-        # Send separate star rating messages for each user
         user_list = list(self.users.values())
         self.vouch_view = VouchView(self, channel, self.message, user_list[0], user_list[1])
-        star_view1 = StarRatingView(self.vouch_view, user_list[0])
-        star_view2 = StarRatingView(self.vouch_view, user_list[1])
-        await channel.send(f"{user_list[0].mention}, please select your star rating:", view=star_view1)
-        await channel.send(f"{user_list[1].mention}, please select your star rating:", view=star_view2)
+        await cleanup_bot_messages(channel)
+        await channel.send(f"{user_list[0].mention}, please rate your trade partner:", view=StarRatingView(self.vouch_view, user_list[0]))
+        await channel.send(f"{user_list[1].mention}, please rate your trade partner:", view=StarRatingView(self.vouch_view, user_list[1]))
 
     async def archive_ticket(self, channel, listing_message):
         archive = channel.guild.get_channel(CHANNELS["archive"])
@@ -91,7 +93,6 @@ class TicketActions(View):
             author = msg.author.display_name
             content = msg.content or ""
             transcript_lines.append(f"[{timestamp}] {author}: {content}")
-
             for att in msg.attachments:
                 transcript_lines.append(f"[{timestamp}] {author} sent an attachment: {att.url}")
 
@@ -102,40 +103,30 @@ class TicketActions(View):
         if archive:
             await archive.send(content=f"📁 Archived ticket: {channel.name}", file=discord_file)
 
-        # Send transcript to both users via DM
         for user in self.users.values():
             try:
-                await user.send(
-                    content=f"📄 Transcript from your completed trade in `{channel.name}`.",
-                    file=discord_file
-                )
-                # Rewind file pointer for next user
+                await user.send(content=f"📄 Transcript from your completed trade in `{channel.name}`.", file=discord_file)
                 transcript_file.seek(0)
             except discord.Forbidden:
-                await channel.send(f"⚠️ Could not send transcript to {user.mention} (DMs may be disabled).")
+                await channel.send(f"⚠️ Could not DM transcript to {user.mention}.")
 
         try:
             await listing_message.delete()
-        except Exception:
+        except:
             pass
 
         await channel.delete()
 
-
-
-# --- VOUCH VIEWS ---
-
 class VouchView:
-    def __init__(self, ticket_actions: TicketActions, channel: discord.TextChannel, listing_message, user1, user2):
+    def __init__(self, ticket_actions, channel, listing_message, user1, user2):
         self.ticket_actions = ticket_actions
         self.channel = channel
         self.listing_message = listing_message
         self.users = {user1.id: user1, user2.id: user2}
-        self.vouches = {}  # user_id -> {"stars": int, "comment": str}
+        self.vouches = {}
 
     def submit_vouch(self, user_id, stars, comment):
         self.vouches[user_id] = {"stars": stars, "comment": comment}
-        # Store global vouch data
         if user_id not in vouch_data:
             vouch_data[user_id] = {"total_stars": 0, "count": 0, "comments": []}
         vouch_data[user_id]["total_stars"] += stars
@@ -146,34 +137,24 @@ class VouchView:
         return len(self.vouches) == 2
 
     async def finish_vouching(self):
-        # Post vouches in vouch_post channel
         vouch_post_channel = self.channel.guild.get_channel(CHANNELS["vouch_post"])
         if not vouch_post_channel:
-            await self.channel.send("❌ Vouch post channel not found. Cannot post vouch.")
+            await self.channel.send("❌ Cannot find vouch post channel.")
             return
-
-        user_list = list(self.users.values())
 
         embed = discord.Embed(title="🛡️ New Trade Vouch", color=EMBED_COLOR, timestamp=datetime.utcnow())
         embed.set_footer(text="Runes and Relics - Vouch System", icon_url=BRANDING_IMAGE)
 
         for uid, user in self.users.items():
-            v = self.vouches.get(uid)
-            stars = v["stars"] if v else 0
-            comment = v["comment"] if v else "No comment"
-            embed.add_field(
-                name=f"{user.display_name} ({stars}⭐)",
-                value=comment,
-                inline=False,
-            )
+            v = self.vouches.get(uid, {})
+            embed.add_field(name=f"{user.display_name} ({v.get('stars', 0)}⭐)", value=v.get("comment", "No comment"), inline=False)
 
         await vouch_post_channel.send(embed=embed)
-        await self.channel.send("✅ Both vouches received! Archiving ticket now.")
+        await self.channel.send("✅ Both vouches received. Archiving ticket now.")
         await self.ticket_actions.archive_ticket(self.channel, self.listing_message)
 
-
 class StarRatingView(View):
-    def __init__(self, vouch_view: VouchView, user: discord.User):
+    def __init__(self, vouch_view, user):
         super().__init__(timeout=None)
         self.vouch_view = vouch_view
         self.user = user
@@ -181,54 +162,38 @@ class StarRatingView(View):
             self.add_item(StarButton(i, self))
 
 class StarButton(Button):
-    def __init__(self, stars, star_view: StarRatingView):
+    def __init__(self, stars, star_view):
         super().__init__(label=f"{stars} ⭐", style=discord.ButtonStyle.primary)
         self.stars = stars
         self.star_view = star_view
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.star_view.user.id:
-            await interaction.response.send_message("This is not your star rating button.", ephemeral=True)
+            await interaction.response.send_message("This is not your star rating.", ephemeral=True)
             return
 
-        # Disable all buttons once clicked
         for child in self.star_view.children:
             child.disabled = True
         await interaction.message.edit(view=self.star_view)
 
-        # Open comment modal
         user_to_vouch = next(u for uid, u in self.star_view.vouch_view.users.items() if uid != interaction.user.id)
         await interaction.response.send_modal(CommentModal(self.star_view.vouch_view, interaction.user, self.stars, user_to_vouch))
 
-
 class CommentModal(Modal, title="Submit Your Vouch Comment"):
-    def __init__(self, vouch_view: VouchView, user_submitting: discord.User, star_rating: int, user_to_vouch: discord.User):
+    def __init__(self, vouch_view, user_submitting, star_rating, user_to_vouch):
         super().__init__()
         self.vouch_view = vouch_view
         self.user_submitting = user_submitting
         self.star_rating = star_rating
         self.user_to_vouch = user_to_vouch
 
-        self.comment = TextInput(
-            label="Comment",
-            style=discord.TextStyle.paragraph,
-            required=False,
-            max_length=200,
-            placeholder="Leave a comment (optional)"
-        )
+        self.comment = TextInput(label="Comment", style=discord.TextStyle.paragraph, required=False, max_length=200, placeholder="Leave a comment (optional)")
         self.add_item(self.comment)
 
     async def on_submit(self, interaction: discord.Interaction):
         comment_value = self.comment.value.strip() or "No comment"
-
-        self.vouch_view.submit_vouch(
-            user_id=self.user_submitting.id,
-            stars=self.star_rating,
-            comment=comment_value
-        )
-
+        self.vouch_view.submit_vouch(self.user_submitting.id, self.star_rating, comment_value)
         await interaction.response.send_message("✅ Your vouch has been recorded!", ephemeral=True)
-
         if self.vouch_view.all_vouches_submitted():
             await self.vouch_view.finish_vouching()
 
