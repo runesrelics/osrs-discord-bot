@@ -328,8 +328,8 @@ class ListingView(View):
 
         # ✅ BUY button with dynamic custom_id (includes lister ID)
         buy_button = Button(
-            label="✅",
-            style=discord.ButtonStyle.secondary,
+            label="BUY",
+            style=discord.ButtonStyle.success,
             custom_id=f"buy_{lister.id}"
         )
         buy_button.callback = self.buy_button_callback
