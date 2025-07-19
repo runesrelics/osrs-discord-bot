@@ -85,21 +85,34 @@ class TicketActions(View):
 
     async def archive_ticket(self, channel, listing_message):
         archive = channel.guild.get_channel(CHANNELS["archive"])
+        transcript_lines = []
+        async for msg in channel.history(limit=None, oldest_first=True):
+            timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            author = msg.author.display_name
+            content = msg.content or ""
+            transcript_lines.append(f"[{timestamp}] {author}: {content}")
+
+            for att in msg.attachments:
+                transcript_lines.append(f"[{timestamp}] {author} sent an attachment: {att.url}")
+
+        transcript_text = "\n".join(transcript_lines)
+        transcript_file = io.StringIO(transcript_text)
+        discord_file = discord.File(fp=transcript_file, filename=f"ticket-{channel.name}-archive.txt")
+
         if archive:
-            transcript_lines = []
-            async for msg in channel.history(limit=None, oldest_first=True):
-                timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                author = msg.author.display_name
-                content = msg.content or ""
-                transcript_lines.append(f"[{timestamp}] {author}: {content}")
-
-                for att in msg.attachments:
-                    transcript_lines.append(f"[{timestamp}] {author} sent an attachment: {att.url}")
-
-            transcript_text = "\n".join(transcript_lines)
-            transcript_file = io.StringIO(transcript_text)
-            discord_file = discord.File(fp=transcript_file, filename=f"ticket-{channel.name}-archive.txt")
             await archive.send(content=f"📁 Archived ticket: {channel.name}", file=discord_file)
+
+        # Send transcript to both users via DM
+        for user in self.users.values():
+            try:
+                await user.send(
+                    content=f"📄 Transcript from your completed trade in `{channel.name}`.",
+                    file=discord_file
+                )
+                # Rewind file pointer for next user
+                transcript_file.seek(0)
+            except discord.Forbidden:
+                await channel.send(f"⚠️ Could not send transcript to {user.mention} (DMs may be disabled).")
 
         try:
             await listing_message.delete()
@@ -107,6 +120,7 @@ class TicketActions(View):
             pass
 
         await channel.delete()
+
 
 
 # --- VOUCH VIEWS ---
