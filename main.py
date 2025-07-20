@@ -7,20 +7,47 @@ from datetime import datetime
 import sqlite3
 import json
 
-DB_PATH = "vouches.db"  # You can change this path if needed
-conn = sqlite3.connect(DB_PATH)
-cursor = conn.cursor()
+DB_PATH = "vouches.db"
 
-# Ensure table exists
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS vouches (
-    user_id TEXT PRIMARY KEY,
-    total_stars INTEGER NOT NULL,
-    count INTEGER NOT NULL,
-    comments TEXT
-)
-''')
-conn.commit()
+def get_vouch_data(user_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT total_stars, count, comments FROM vouches WHERE user_id = ?', (user_id,))
+        return cursor.fetchone()
+
+def update_vouch(user_id, stars, comment):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        row = get_vouch_data(user_id)
+
+        if row:
+            total_stars, count, comments_json = row
+            comments_list = json.loads(comments_json) if comments_json else []
+            total_stars += stars
+            count += 1
+            comments_list.append(comment)
+            comments_json = json.dumps(comments_list)
+            cursor.execute('UPDATE vouches SET total_stars=?, count=?, comments=? WHERE user_id=?',
+                           (total_stars, count, comments_json, user_id))
+        else:
+            comments_json = json.dumps([comment])
+            cursor.execute('INSERT INTO vouches (user_id, total_stars, count, comments) VALUES (?, ?, ?, ?)',
+                           (user_id, stars, 1, comments_json))
+        conn.commit()
+
+
+with sqlite3.connect(DB_PATH) as conn:
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS vouches (
+        user_id TEXT PRIMARY KEY,
+        total_stars INTEGER NOT NULL,
+        count INTEGER NOT NULL,
+        comments TEXT
+    )
+    ''')
+    conn.commit()
+
 
 
 
@@ -145,25 +172,8 @@ class VouchView:
     def submit_vouch(self, user_id, stars, comment):
         user_id_str = str(user_id)
         self.vouches[user_id_str] = {"stars": stars, "comment": comment}
+        update_vouch(user_id_str, stars, comment)
 
-        cursor.execute('SELECT total_stars, count, comments FROM vouches WHERE user_id = ?', (user_id_str,))
-        row = cursor.fetchone()
-
-        if row:
-            total_stars, count, comments_json = row
-            comments_list = json.loads(comments_json) if comments_json else []
-            total_stars += stars
-            count += 1
-            comments_list.append(comment)
-            comments_json = json.dumps(comments_list)
-            cursor.execute('UPDATE vouches SET total_stars=?, count=?, comments=? WHERE user_id=?',
-                           (total_stars, count, comments_json, user_id_str))
-        else:
-            comments_json = json.dumps([comment])
-            cursor.execute('INSERT INTO vouches (user_id, total_stars, count, comments) VALUES (?, ?, ?, ?)',
-                           (user_id_str, stars, 1, comments_json))
-
-        conn.commit()
 
     def all_vouches_submitted(self):
         return len(self.vouches) == 2
@@ -394,6 +404,32 @@ class ListingView(View):
         await interaction.message.delete()
         await interaction.response.send_message("🗑️ Listing deleted.", ephemeral=True)
 
+class EditListingModal(Modal, title="Edit Your Listing"):
+    def __init__(self, message: discord.Message, lister: discord.User):
+        super().__init__()
+        self.message = message
+        self.lister = lister
+
+        self.description = TextInput(label="New Description", style=discord.TextStyle.paragraph, required=True)
+        self.price = TextInput(label="New Price / Value", required=True)
+
+        self.add_item(self.description)
+        self.add_item(self.price)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = self.message.embeds[0]
+        embed.description = self.description.value
+
+        # Update the "Value" field in the embed if it exists
+        for i, field in enumerate(embed.fields):
+            if field.name.lower() == "value":
+                embed.set_field_at(i, name=field.name, value=self.price.value, inline=field.inline)
+                break
+
+        await self.message.edit(embed=embed)
+        await interaction.response.send_message("✅ Listing updated!", ephemeral=True)
+
+
 
 # --- INTERACTION HANDLER ---
 
@@ -451,8 +487,10 @@ async def on_interaction(interaction: discord.Interaction):
 
 @bot.tree.command(name="vouchleader", description="Show top 10 vouched users")
 async def vouchleader(interaction: discord.Interaction):
-    cursor.execute('SELECT user_id, total_stars, count FROM vouches')
-    rows = cursor.fetchall()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT user_id, total_stars, count FROM vouches')
+        rows = cursor.fetchall()
 
     if not rows:
         await interaction.response.send_message("No vouches recorded yet.")
@@ -480,9 +518,11 @@ async def vouchleader(interaction: discord.Interaction):
 
 @bot.tree.command(name="vouchcheck", description="Check how many vouches you have.")
 async def vouchcheck(interaction: discord.Interaction):
-    user_id = str(interaction.user.id)
-    cursor.execute('SELECT total_stars, count FROM vouches WHERE user_id = ?', (user_id,))
-    row = cursor.fetchone()
+    user_id = str(interaction.user.id)  # Make sure user ID is a string
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT total_stars, count FROM vouches WHERE user_id = ?', (user_id,))
+        row = cursor.fetchone()
 
     if not row:
         await interaction.response.send_message("📊 You have no recorded vouches yet.", ephemeral=True)
@@ -494,6 +534,7 @@ async def vouchcheck(interaction: discord.Interaction):
         f"📊 You currently have **{count}** vouches with an average rating of **{avg_stars:.2f}⭐**.",
         ephemeral=True
     )
+
 
 
 # --- READY EVENT ---
