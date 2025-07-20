@@ -72,7 +72,7 @@ class TicketActions(View):
             return
 
         self.completions.add(interaction.user.id)
-        await interaction.response.send_message("✅ You marked the trade as complete.", ephemeral=True)
+        await interaction.response.send_message("✅ You marked the trade as complete. Waiting for other user to mark as complete", ephemeral=True)
 
         if len(self.completions) == 2:
             await interaction.channel.send("✅ Both parties have marked the trade as complete.")
