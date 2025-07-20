@@ -4,16 +4,25 @@ from discord.ext import commands
 from discord.ui import View, Button, Modal, TextInput
 import io
 from datetime import datetime
+import sqlite3
 import json
 
-VOUCH_FILE = "vouches.json"
+DB_PATH = "vouches.db"  # You can change this path if needed
+conn = sqlite3.connect(DB_PATH)
+cursor = conn.cursor()
 
-# Load vouches from file if exists
-if os.path.exists(VOUCH_FILE):
-    with open(VOUCH_FILE, "r") as f:
-        vouch_data = json.load(f)
-else:
-    vouch_data = {}
+# Ensure table exists
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS vouches (
+    user_id TEXT PRIMARY KEY,
+    total_stars INTEGER NOT NULL,
+    count INTEGER NOT NULL,
+    comments TEXT
+)
+''')
+conn.commit()
+
+
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -136,15 +145,25 @@ class VouchView:
     def submit_vouch(self, user_id, stars, comment):
         user_id_str = str(user_id)
         self.vouches[user_id_str] = {"stars": stars, "comment": comment}
-        if user_id_str not in vouch_data:
-            vouch_data[user_id_str] = {"total_stars": 0, "count": 0, "comments": []}
-        vouch_data[user_id_str]["total_stars"] += stars
-        vouch_data[user_id_str]["count"] += 1
-        vouch_data[user_id_str]["comments"].append(comment)
 
-        # Save to file after each update
-        with open(VOUCH_FILE, "w") as f:
-            json.dump(vouch_data, f, indent=4)
+        cursor.execute('SELECT total_stars, count, comments FROM vouches WHERE user_id = ?', (user_id_str,))
+        row = cursor.fetchone()
+
+        if row:
+            total_stars, count, comments_json = row
+            comments_list = json.loads(comments_json) if comments_json else []
+            total_stars += stars
+            count += 1
+            comments_list.append(comment)
+            comments_json = json.dumps(comments_list)
+            cursor.execute('UPDATE vouches SET total_stars=?, count=?, comments=? WHERE user_id=?',
+                           (total_stars, count, comments_json, user_id_str))
+        else:
+            comments_json = json.dumps([comment])
+            cursor.execute('INSERT INTO vouches (user_id, total_stars, count, comments) VALUES (?, ?, ?, ?)',
+                           (user_id_str, stars, 1, comments_json))
+
+        conn.commit()
 
     def all_vouches_submitted(self):
         return len(self.vouches) == 2
@@ -165,6 +184,7 @@ class VouchView:
         await vouch_post_channel.send(embed=embed)
         await self.channel.send("✅ Both vouches received. Archiving ticket now.")
         await self.ticket_actions.archive_ticket(self.channel, self.listing_message)
+
 
 class StarRatingView(View):
     def __init__(self, vouch_view, user):
@@ -431,45 +451,50 @@ async def on_interaction(interaction: discord.Interaction):
 
 @bot.tree.command(name="vouchleader", description="Show top 10 vouched users")
 async def vouchleader(interaction: discord.Interaction):
-    if not vouch_data:
+    cursor.execute('SELECT user_id, total_stars, count FROM vouches')
+    rows = cursor.fetchall()
+
+    if not rows:
         await interaction.response.send_message("No vouches recorded yet.")
         return
 
-    sorted_users = sorted(
-        vouch_data.items(),
-        key=lambda item: (item[1]["total_stars"] / item[1]["count"], item[1]["count"]),
-        reverse=True
-    )[:10]
+    # Sort by average stars and count
+    sorted_rows = sorted(rows, key=lambda x: (x[1] / x[2], x[2]), reverse=True)[:10]
 
     embed = discord.Embed(title="🏆 Runes & Relics Vouch Leaderboard", color=EMBED_COLOR)
     embed.set_image(url="https://i.postimg.cc/0jHw8mRV/glowww.png")
     embed.set_footer(text="Based on average rating and number of vouches")
 
-    for user_id, data in sorted_users:
+    for user_id, total_stars, count in sorted_rows:
         user = interaction.guild.get_member(int(user_id))
         if user:
-            avg_stars = data["total_stars"] / data["count"]
+            avg_stars = total_stars / count if count > 0 else 0
             embed.add_field(
                 name=user.display_name,
-                value=f"⭐ {avg_stars:.2f} from {data['count']} vouches",
+                value=f"⭐ {avg_stars:.2f} from {count} vouches",
                 inline=False
             )
 
     await interaction.response.send_message(embed=embed)
 
+
 @bot.tree.command(name="vouchcheck", description="Check how many vouches you have.")
 async def vouchcheck(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
-    data = vouch_data.get(user_id)
-    if not data:
+    cursor.execute('SELECT total_stars, count FROM vouches WHERE user_id = ?', (user_id,))
+    row = cursor.fetchone()
+
+    if not row:
         await interaction.response.send_message("📊 You have no recorded vouches yet.", ephemeral=True)
         return
 
-    avg_stars = data["total_stars"] / data["count"] if data["count"] > 0 else 0
+    total_stars, count = row
+    avg_stars = total_stars / count if count > 0 else 0
     await interaction.response.send_message(
-        f"📊 You currently have **{data['count']}** vouches with an average rating of **{avg_stars:.2f}⭐**.",
+        f"📊 You currently have **{count}** vouches with an average rating of **{avg_stars:.2f}⭐**.",
         ephemeral=True
     )
+
 
 # --- READY EVENT ---
 
