@@ -262,7 +262,7 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
         elif "iron" in account_type:
             target_channel_id = target_channels["ironman"]
         else:
-            await interaction.response.send_message("❌ Invalid account type.", ephemeral=True)
+            await interaction.response.send_message("❌ Invalid account type. Please include 'Main', 'PvP', or 'Ironman' in your category.", ephemeral=True)
             return
 
         listing_embed = discord.Embed(
@@ -274,11 +274,14 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
         listing_embed.set_thumbnail(url=BRANDING_IMAGE)
         listing_embed.add_field(name="Value", value=self.price.value)
 
+        view = View()
+        view.add_item(Button(label="🗡️ BUY", style=discord.ButtonStyle.success, custom_id=f"buy_{interaction.user.id}"))
+
         listing_channel = interaction.guild.get_channel(target_channel_id)
         create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
 
         await interaction.response.send_message(
-            "Please upload up to 5 images in this channel. When finished, type 'done'.",
+            "📸 Please upload **up to 5 images** in this channel. When finished, type **'done'**.",
             ephemeral=True
         )
 
@@ -290,7 +293,7 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
         while len(images) < 5:
             try:
                 msg = await bot.wait_for("message", timeout=120.0, check=check)
-            except:
+            except asyncio.TimeoutError:
                 break
 
             if msg.content.lower() == "done":
@@ -299,23 +302,22 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
             if msg.attachments:
                 images.extend(msg.attachments)
             else:
-                await create_trade_channel.send(f"{interaction.user.mention} Please upload images or type 'done' to finish.", delete_after=10)
+                await create_trade_channel.send(f"{interaction.user.mention} Please upload images or type **'done'** to finish.", delete_after=10)
 
         files = []
         for img in images[:5]:
             try:
                 files.append(await img.to_file())
-            except:
-                pass
+            except Exception as e:
+                print(f"Error processing image: {e}")
 
-        # Send listing message first (no view yet)
-        msg = await listing_channel.send(embed=listing_embed, files=files)
+        try:
+            await listing_channel.send(embed=listing_embed, view=view, files=files)
+        except Exception as e:
+            await interaction.followup.send("❌ Failed to post listing. Please try again later.", ephemeral=True)
+            return
 
-        # Now create the ListingView with the message reference
-        view = ListingView(lister=interaction.user, message=msg)
-        await msg.edit(view=view)  # Attach the view to the message
-
-        # Clean up images/messages in create_trade_channel
+        # Clean up old messages
         async for old_msg in create_trade_channel.history(limit=50):
             if old_msg.author == interaction.user:
                 try:
@@ -324,6 +326,7 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
                     pass
 
         await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
+
 
 
 class GPListingModal(Modal, title="List OSRS GP"):
