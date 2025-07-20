@@ -7,7 +7,7 @@ from datetime import datetime
 import sqlite3
 import json
 
-DB_PATH = "vouches.db"
+DB_PATH = "/app/vouches.db"
 
 def get_vouch_data(user_id):
     with sqlite3.connect(DB_PATH) as conn:
