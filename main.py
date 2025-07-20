@@ -189,7 +189,7 @@ class GPTypeSelectView(discord.ui.View):
 
 
 class ListingRemoveView(View):
-    def __init__(self, lister=None, channel=None, listing_message=None, ticket_actions=None):
+    def __init__(self, lister, channel, listing_message, ticket_actions):
         super().__init__(timeout=60)
         self.lister = lister
         self.channel = channel
@@ -199,7 +199,7 @@ class ListingRemoveView(View):
 
     @discord.ui.button(label="🗑️ Yes, remove listing", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.lister is None or interaction.user.id != self.lister.id:
+        if interaction.user.id != self.lister.id:
             await interaction.response.send_message("🚫 Only the listing owner can use this.", ephemeral=True)
             return
 
@@ -209,14 +209,13 @@ class ListingRemoveView(View):
 
     @discord.ui.button(label="❌ No, keep listing", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.lister is None or interaction.user.id != self.lister.id:
+        if interaction.user.id != self.lister.id:
             await interaction.response.send_message("🚫 Only the listing owner can use this.", ephemeral=True)
             return
 
         await interaction.response.send_message("✅ Listing will be kept. Archiving the ticket.", ephemeral=True)
         self.decision = False
         self.stop()
-
 
 
 
@@ -510,7 +509,7 @@ class ListingView(View):
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
             return
         # Show confirmation buttons
-        view = ListingRemoveView(lister=self.lister, listing_message=self.listing_message)
+        view = ListingRemoveView(self.listing_message)
         await interaction.response.send_message(
             "Are you sure you want to delete your listing?",
             view=view,
