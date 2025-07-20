@@ -97,6 +97,7 @@ class TicketActions(View):
         self.users = {user1.id: user1, user2.id: user2}
         self.completions = set()
         self.vouch_view = None
+        self.lister = user2
 
     @discord.ui.button(label="✅ Mark as Complete", style=discord.ButtonStyle.success)
     async def complete(self, interaction: discord.Interaction, button: Button):
