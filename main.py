@@ -386,7 +386,8 @@ class ListingView(View):
 
     # ✅ BUY button callback - only acknowledges interaction
     async def buy_button_callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message("Processing your purchase...", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+
         # Ticket creation is handled in on_interaction via custom_id="buy_<lister_id>"
 
     # ✏️ EDIT button logic
@@ -456,7 +457,7 @@ async def on_interaction(interaction: discord.Interaction):
         lister = interaction.guild.get_member(lister_id)
 
         if not lister or lister == buyer:
-            await interaction.response.send_message("❌ Invalid buyer or listing owner.", ephemeral=True)
+            await interaction.followup.send("❌ Invalid buyer or listing owner.", ephemeral=True)
             return
 
         overwrites = {
@@ -470,7 +471,8 @@ async def on_interaction(interaction: discord.Interaction):
             if role:
                 overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
-        await interaction.response.defer(ephemeral=True)
+        # Remove this line to avoid double defer:
+        # await interaction.response.defer(ephemeral=True)
 
         ticket_channel = await interaction.guild.create_text_channel(
             name=f"ticket-{buyer.name}-and-{lister.name}",
@@ -488,6 +490,7 @@ async def on_interaction(interaction: discord.Interaction):
             embed=embed_copy,
             view=TicketActions(interaction.message, buyer, lister)
         )
+
 
 
 
