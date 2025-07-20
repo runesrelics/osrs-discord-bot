@@ -448,109 +448,52 @@ async def on_interaction(interaction: discord.Interaction):
         await interaction.response.send_modal(GPListingModal())
 
     elif custom_id.startswith("buy_"):
-        try:
-            lister_id = int(custom_id.split("_")[1])
-        except ValueError:
-            return
-        buyer = interaction.user
-        lister = interaction.guild.get_member(lister_id)
-        
-        if not lister or lister == buyer:
-            await interaction.followup.send("❌ Invalid buyer or listing owner.", ephemeral=True)
-            return
-            
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            buyer: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-            lister: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-        }
-        
-        for role_name in ["Moderator", "Admin"]:
-            role = discord.utils.get(interaction.guild.roles, name=role_name)
-            if role:
-                overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
-                
-        await interaction.response.defer(ephemeral=True)
-        
-        ticket_channel = await interaction.guild.create_text_channel(
-            name=f"ticket-{buyer.name}-and-{lister.name}",
-            overwrites=overwrites,
-            topic="Trade ticket between buyer and seller."
-        )
-        
-        if not interaction.message or not interaction.message.embeds:
-            await interaction.followup.send("❌ Original listing message not found.", ephemeral=True)
-            return
-            
-        embed_copy = interaction.message.embeds[0]
-        
-        await ticket_channel.send(
-            f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
-            embed=embed_copy,
-            view=TicketActions(interaction.message, buyer, lister)
-        )
-        
-        await interaction.followup.send(
-            f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)  # Moved to top
 
-
-
-
-
-
-# --- SLASH COMMANDS ---
-
-@bot.tree.command(name="vouchleader", description="Show top 10 vouched users")
-async def vouchleader(interaction: discord.Interaction):
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT user_id, total_stars, count FROM vouches')
-        rows = cursor.fetchall()
-
-    if not rows:
-        await interaction.response.send_message("No vouches recorded yet.")
+    try:
+        lister_id = int(custom_id.split("_")[1])
+    except ValueError:
         return
 
-    # Sort by average stars and count
-    sorted_rows = sorted(rows, key=lambda x: (x[1] / x[2], x[2]), reverse=True)[:10]
+    buyer = interaction.user
+    lister = interaction.guild.get_member(lister_id)
 
-    embed = discord.Embed(title="🏆 Runes & Relics Vouch Leaderboard", color=EMBED_COLOR)
-    embed.set_image(url="https://i.postimg.cc/0jHw8mRV/glowww.png")
-    embed.set_footer(text="Based on average rating and number of vouches")
-
-    for user_id, total_stars, count in sorted_rows:
-        user = interaction.guild.get_member(int(user_id))
-        if user:
-            avg_stars = total_stars / count if count > 0 else 0
-            embed.add_field(
-                name=user.display_name,
-                value=f"⭐ {avg_stars:.2f} from {count} vouches",
-                inline=False
-            )
-
-    await interaction.response.send_message(embed=embed)
-
-
-@bot.tree.command(name="vouchcheck", description="Check how many vouches you have.")
-async def vouchcheck(interaction: discord.Interaction):
-    user_id = str(interaction.user.id)  # Make sure user ID is a string
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT total_stars, count FROM vouches WHERE user_id = ?', (user_id,))
-        row = cursor.fetchone()
-
-    if not row:
-        await interaction.response.send_message("📊 You have no recorded vouches yet.", ephemeral=True)
+    if not lister or lister == buyer:
+        await interaction.followup.send("❌ Invalid buyer or listing owner.", ephemeral=True)
         return
 
-    total_stars, count = row
-    avg_stars = total_stars / count if count > 0 else 0
-    await interaction.response.send_message(
-        f"📊 You currently have **{count}** vouches with an average rating of **{avg_stars:.2f}⭐**.",
-        ephemeral=True
+    overwrites = {
+        interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+        buyer: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+        lister: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+    }
+
+    for role_name in ["Moderator", "Admin"]:
+        role = discord.utils.get(interaction.guild.roles, name=role_name)
+        if role:
+            overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+
+    ticket_channel = await interaction.guild.create_text_channel(
+        name=f"ticket-{buyer.name}-and-{lister.name}",
+        overwrites=overwrites,
+        topic="Trade ticket between buyer and seller."
     )
 
+    if not interaction.message or not interaction.message.embeds:
+        await interaction.followup.send("❌ Original listing message not found.", ephemeral=True)
+        return
+
+    embed_copy = interaction.message.embeds[0]
+
+    await ticket_channel.send(
+        f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
+        embed=embed_copy,
+        view=TicketActions(interaction.message, buyer, lister)
+    )
+
+    await interaction.followup.send(
+        f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True
+    )
 
 
 # --- READY EVENT ---
