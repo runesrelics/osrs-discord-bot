@@ -458,12 +458,21 @@ async def on_interaction(interaction: discord.Interaction):
     if interaction.type == discord.InteractionType.component:
         custom_id = interaction.data.get("custom_id", "")
 
+        if custom_id == "list_account":
+            await interaction.response.send_modal(AccountListingModal())
+            return
+
+        elif custom_id == "list_gp":
+            await interaction.response.send_modal(GPListingModal())
+            return
+
         if custom_id.startswith("buy_"):
             try:
                 lister_id = int(custom_id.split("_")[1])
             except ValueError:
                 # Cannot parse lister id, ignore interaction
                 return
+
 
             buyer = interaction.user
             lister = interaction.guild.get_member(lister_id)
@@ -515,6 +524,20 @@ async def on_interaction(interaction: discord.Interaction):
 
 
 # --- SLASH COMMANDS ---
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def setup_listings(ctx):
+    if ctx.channel.id != CHANNELS["create_trade"]:
+        await ctx.send("❌ Please run this command in the create_trade channel.")
+        return
+
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="List OSRS Account", custom_id="list_account"))
+    view.add_item(discord.ui.Button(label="List OSRS GP", custom_id="list_gp"))
+
+    await ctx.send("Choose what you want to list:", view=view)
+
 
 @bot.tree.command(name="vouchleader", description="Show top 10 vouched users")
 async def vouchleader(interaction: discord.Interaction):
