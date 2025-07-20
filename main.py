@@ -274,8 +274,6 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
         listing_embed.set_thumbnail(url=BRANDING_IMAGE)
         listing_embed.add_field(name="Value", value=self.price.value)
 
-        view = ListingView(lister=interaction.user)
-
         listing_channel = interaction.guild.get_channel(target_channel_id)
         create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
 
@@ -310,8 +308,14 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
             except:
                 pass
 
-        msg = await listing_channel.send(embed=listing_embed, view=view, files=files)
+        # Send listing message first (no view yet)
+        msg = await listing_channel.send(embed=listing_embed, files=files)
 
+        # Now create the ListingView with the message reference
+        view = ListingView(lister=interaction.user, message=msg)
+        await msg.edit(view=view)  # Attach the view to the message
+
+        # Clean up images/messages in create_trade_channel
         async for old_msg in create_trade_channel.history(limit=50):
             if old_msg.author == interaction.user:
                 try:
@@ -320,6 +324,7 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
                     pass
 
         await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
+
 
 class GPListingModal(Modal, title="List OSRS GP"):
     amount = TextInput(label="Amount", placeholder="e.g. 500M", required=True)
@@ -338,10 +343,14 @@ class GPListingModal(Modal, title="List OSRS GP"):
         listing_embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         listing_embed.set_thumbnail(url=BRANDING_IMAGE)
 
-        view = ListingView(lister=interaction.user)
-
         listing_channel = interaction.guild.get_channel(target_channel_id)
-        msg = await listing_channel.send(embed=listing_embed, view=view)
+
+        # Send listing message first (no view)
+        msg = await listing_channel.send(embed=listing_embed)
+
+        # Now create view with message reference
+        view = ListingView(lister=interaction.user, message=msg)
+        await msg.edit(view=view)
 
         create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
         async for old_msg in create_trade_channel.history(limit=50):
@@ -353,10 +362,12 @@ class GPListingModal(Modal, title="List OSRS GP"):
 
         await interaction.response.send_message("✅ Your GP listing has been posted!", ephemeral=True)
 
+
 class ListingView(View):
     def __init__(self, lister: discord.User):
         super().__init__(timeout=None)
         self.lister = lister
+        self.message = message
 
         # ✅ BUY button with dynamic custom_id (includes lister ID)
         buy_button = Button(
