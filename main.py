@@ -236,7 +236,7 @@ class VouchView:
         try:
             if self.listing_message and self.lister:
                 view = ListingRemoveView(
-                    Lister=self.lister,
+                    lister=self.lister,
                     channel=self.channel,
                     listing_message=self.listing_message,
                     ticket_actions=self.ticket_actions
