@@ -385,8 +385,8 @@ class ListingView(View):
         self.add_item(delete_button)
 
     async def buy_button_callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message("Processing your purchase...", ephemeral=True)
-        # Ticket creation handled in on_interaction for "buy_..."
+        await interaction.response.defer(ephemeral=True)
+
 
     async def edit_listing(self, interaction: discord.Interaction):
         if interaction.user.id != self.lister.id:
