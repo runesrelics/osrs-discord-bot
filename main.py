@@ -442,8 +442,10 @@ async def on_interaction(interaction: discord.Interaction):
 
     if custom_id == "account_listing":
         await interaction.response.send_modal(AccountListingModal())
+
     elif custom_id == "gp_listing":
         await interaction.response.send_modal(GPListingModal())
+
     elif custom_id.startswith("buy_"):
         try:
             lister_id = int(custom_id.split("_")[1])
@@ -474,6 +476,12 @@ async def on_interaction(interaction: discord.Interaction):
             topic="Trade ticket between buyer and seller."
         )
 
+        # Respond FIRST
+        await interaction.response.send_message(
+            f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True
+        )
+
+        # Then send to ticket channel
         embed_copy = interaction.message.embeds[0]
         await ticket_channel.send(
             f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
@@ -481,7 +489,6 @@ async def on_interaction(interaction: discord.Interaction):
             view=TicketActions(interaction.message, buyer, lister)
         )
 
-        await interaction.response.send_message(f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True)
 
 # --- SLASH COMMANDS ---
 
