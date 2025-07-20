@@ -90,9 +90,10 @@ async def cleanup_bot_messages(channel, limit=100):
                 pass
 
 class TicketActions(View):
-    def __init__(self, message, user1, user2):
+    def __init__(self, ticket_message, listing_message, user1, user2):
         super().__init__(timeout=None)
-        self.message = message
+        self.ticket_message = ticket_message
+        self.listing_message = listing_message
         self.users = {user1.id: user1, user2.id: user2}
         self.completions = set()
         self.vouch_view = None
@@ -120,7 +121,7 @@ class TicketActions(View):
             await interaction.response.send_message("You are not part of this trade.", ephemeral=True)
             return
         await interaction.channel.send("❌ Trade has been cancelled.")
-        await self.archive_ticket(interaction.channel, self.message)
+        await self.archive_ticket(interaction.channel, self.listing_message)
 
     async def start_vouching(self, channel):
         user_list = list(self.users.values())
@@ -485,11 +486,12 @@ async def on_interaction(interaction: discord.Interaction):
 
                 embed_copy = interaction.message.embeds[0]
 
-                await ticket_channel.send(
+                ticket_message = await ticket_channel.send(
                     f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
-                    embed=embed_copy,
-                    view=TicketActions(interaction.message, buyer, lister)
+                    embed=embed_copy
                 )
+
+                await ticket_message.edit(view=TicketActions(ticket_message, buyer, lister))
 
                 await interaction.followup.send(f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True)
 
