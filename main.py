@@ -436,70 +436,79 @@ class EditListingModal(Modal, title="Edit Your Listing"):
 
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
-    if interaction.type != discord.InteractionType.component:
+    # Handle slash commands (application_command) separately if needed
+    if interaction.type == discord.InteractionType.application_command:
+        # Let the bot handle slash commands via command tree
+        # (Usually no extra code needed here unless custom slash handling)
         return
 
-    custom_id = interaction.data.get("custom_id", "")
+    # Handle component interactions
+    if interaction.type == discord.InteractionType.component:
+        custom_id = interaction.data.get("custom_id", "")
 
-    if custom_id == "account_listing":
-        await interaction.response.send_modal(AccountListingModal())
-
-    elif custom_id == "gp_listing":
-        await interaction.response.send_modal(GPListingModal())
-
-    elif custom_id.startswith("buy_"):
-        try:
-            lister_id = int(custom_id.split("_")[1])
-        except ValueError:
+        if custom_id == "account_listing":
+            await interaction.response.send_modal(AccountListingModal())
             return
 
-        buyer = interaction.user
-        lister = interaction.guild.get_member(lister_id)
-
-        # 🚨 MUST defer FIRST, to acknowledge interaction
-        await interaction.response.defer(ephemeral=True)
-
-        if not lister or lister == buyer:
-            await interaction.followup.send("❌ Invalid buyer or listing owner.", ephemeral=True)
+        elif custom_id == "gp_listing":
+            await interaction.response.send_modal(GPListingModal())
             return
 
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            buyer: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-            lister: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-        }
-
-        for role_name in ["Moderator", "Admin"]:
-            role = discord.utils.get(interaction.guild.roles, name=role_name)
-            if role:
-                overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
-
-        try:
-            ticket_channel = await interaction.guild.create_text_channel(
-                name=f"ticket-{buyer.name}-and-{lister.name}",
-                overwrites=overwrites,
-                topic="Trade ticket between buyer and seller."
-            )
-
-            # 🔒 Check that original message and embed exist
-            if not interaction.message or not interaction.message.embeds:
-                await interaction.followup.send("❌ Original listing message not found.", ephemeral=True)
+        elif custom_id.startswith("buy_"):
+            try:
+                lister_id = int(custom_id.split("_")[1])
+            except ValueError:
                 return
 
-            embed_copy = interaction.message.embeds[0]
+            buyer = interaction.user
+            lister = interaction.guild.get_member(lister_id)
 
-            await ticket_channel.send(
-                f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
-                embed=embed_copy,
-                view=TicketActions(interaction.message, buyer, lister)
-            )
+            if not lister or lister == buyer:
+                # Must defer or respond before followup
+                if not interaction.response.is_done():
+                    await interaction.response.defer(ephemeral=True)
+                await interaction.followup.send("❌ Invalid buyer or listing owner.", ephemeral=True)
+                return
 
-            await interaction.followup.send(
-                f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True
-            )
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
 
-        except Exception as e:
-            await interaction.followup.send(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
+            overwrites = {
+                interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                buyer: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+                lister: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+            }
+
+            for role_name in ["Moderator", "Admin"]:
+                role = discord.utils.get(interaction.guild.roles, name=role_name)
+                if role:
+                    overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+
+            try:
+                ticket_channel = await interaction.guild.create_text_channel(
+                    name=f"ticket-{buyer.name}-and-{lister.name}",
+                    overwrites=overwrites,
+                    topic="Trade ticket between buyer and seller."
+                )
+
+                if not interaction.message or not interaction.message.embeds:
+                    await interaction.followup.send("❌ Original listing message not found.", ephemeral=True)
+                    return
+
+                embed_copy = interaction.message.embeds[0]
+
+                await ticket_channel.send(
+                    f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
+                    embed=embed_copy,
+                    view=TicketActions(interaction.message, buyer, lister)
+                )
+
+                await interaction.followup.send(
+                    f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True
+                )
+            except Exception as e:
+                await interaction.followup.send(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
+            return
 
 # --- SLASH COMMANDS ---
 
