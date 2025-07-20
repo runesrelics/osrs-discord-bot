@@ -235,7 +235,12 @@ class VouchView:
         await self.channel.send("✅ Both vouches received.")
         try:
             if self.listing_message and self.lister:
-                view = ListingRemoveView(self.listing_message)
+                view = ListingRemoveView(
+                    Lister=self.lister,
+                    channel=self.channel,
+                    listing_message=self.listing_message,
+                    ticket_actions=self.ticket_actions
+                )
                 await self.channel.send(
                     f"{self.lister.mention}, would you like to remove your original listing?",
                     view=view
