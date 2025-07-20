@@ -163,6 +163,32 @@ class TicketActions(View):
 
         await channel.delete()
 
+class GPTypeSelectView(discord.ui.View):
+    def __init__(self, user):
+        super().__init__(timeout=60)
+        self.user = user
+        self.choice = None
+
+    @discord.ui.button(label="BUYING", style=discord.ButtonStyle.success)
+    async def buying(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            await interaction.response.send_message("Only you can select this.", ephemeral=True)
+            return
+        self.choice = "buying"
+        await interaction.response.send_message("You selected **BUYING**. Please fill in your listing details.", ephemeral=True)
+        self.stop()
+
+    @discord.ui.button(label="SELLING", style=discord.ButtonStyle.danger)
+    async def selling(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            await interaction.response.send_message("Only you can select this.", ephemeral=True)
+            return
+        self.choice = "selling"
+        await interaction.response.send_message("You selected **SELLING**. Please fill in your listing details.", ephemeral=True)
+        self.stop()
+
+
+
 class ListingRemoveView(View):
     def __init__(self, lister, channel, listing_message, ticket_actions):
         super().__init__(timeout=60)
@@ -189,17 +215,6 @@ class ListingRemoveView(View):
             return
 
         await interaction.response.send_message("✅ Listing will be kept. Archiving the ticket.", ephemeral=True)
-        self.decision = False
-        self.stop()
-
-
-    @discord.ui.button(label="❌ No, keep listing", style=discord.ButtonStyle.secondary)
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.lister.id:
-            await interaction.response.send_message("🚫 Only the listing owner can use this.", ephemeral=True)
-            return
-
-        await interaction.response.send_message("Listing will be kept.", ephemeral=True)
         self.decision = False
         self.stop()
 
@@ -400,18 +415,26 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
 
 
 class GPListingModal(Modal, title="List OSRS GP"):
-    amount = TextInput(label="Amount", placeholder="e.g. 500M", required=True)
-    payment = TextInput(label="Accepted payment methods", placeholder="BTC, OS, PayPal...")
+    def __init__(self, choice):  # choice is 'buying' or 'selling'
+        super().__init__()
+        self.choice = choice
+        self.amount = TextInput(label="Amount", placeholder="e.g. 500M", required=True)
+        self.payment = TextInput(label="Accepted payment methods", placeholder="BTC, OS, PayPal...")
+
+        self.add_item(self.amount)
+        self.add_item(self.payment)
 
     async def on_submit(self, interaction: discord.Interaction):
         trusted = any("trusted" in role.name.lower() for role in interaction.user.roles)
-
         target_channel_id = (CHANNELS["trusted"] if trusted else CHANNELS["public"])["gp"]
+
+        color = discord.Color.green() if self.choice == "buying" else discord.Color.red()
+        role_text = "**BUYER**" if self.choice == "buying" else "**SELLER**"
 
         listing_embed = discord.Embed(
             title="💰 OSRS GP Listing",
-            description=f"**Amount:** {self.amount.value}\n**Payment Methods:** {self.payment.value}",
-            color=EMBED_COLOR
+            description=f"{role_text}\n\n**Amount:** {self.amount.value}\n**Payment Methods:** {self.payment.value}",
+            color=color
         )
         listing_embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         listing_embed.set_thumbnail(url=BRANDING_IMAGE)
@@ -420,7 +443,6 @@ class GPListingModal(Modal, title="List OSRS GP"):
         msg = await listing_channel.send(embed=listing_embed)
         
         view = ListingView(lister=interaction.user, listing_message=msg)
-        
         await msg.edit(view=view)
 
         create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
@@ -529,8 +551,20 @@ async def on_interaction(interaction: discord.Interaction):
             return
 
         elif custom_id == "list_gp":
-            await interaction.response.send_modal(GPListingModal())
-            return
+            view = GPTypeSelectView(interaction.user)
+            await interaction.response.send_message(
+                "Please select if you are **BUYING** or **SELLING** OSRS GP:",
+                view=view,
+                ephemeral=True
+            )
+            await view.wait()
+            if view.choice is None:
+                await interaction.followup.send("Selection timed out.", ephemeral=True)
+                return
+
+        await interaction.followup.send("Opening listing modal...",ephemeral=True)
+        await interaction.response.send_modal(GPListingModal(view.choice))
+        return
 
         if custom_id.startswith("buy_"):
             try:
