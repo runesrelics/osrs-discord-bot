@@ -501,11 +501,16 @@ async def on_interaction(interaction: discord.Interaction):
         except Exception as e:
             await interaction.followup.send(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
 
-
 # --- SLASH COMMANDS ---
 
 @bot.tree.command(name="vouchleader", description="Show top 10 vouched users")
 async def vouchleader(interaction: discord.Interaction):
+    try:
+        with open("vouches.json", "r") as f:
+            vouch_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        vouch_data = {}
+
     if not vouch_data:
         await interaction.response.send_message("No vouches recorded yet.")
         return
@@ -521,7 +526,7 @@ async def vouchleader(interaction: discord.Interaction):
     embed.set_footer(text="Based on average rating and number of vouches")
 
     for user_id, data in sorted_users:
-        user = interaction.guild.get_member(user_id)
+        user = interaction.guild.get_member(int(user_id))
         if user:
             avg_stars = data["total_stars"] / data["count"]
             embed.add_field(
@@ -534,7 +539,6 @@ async def vouchleader(interaction: discord.Interaction):
 
 @bot.tree.command(name="vouchcheck", description="Check how many vouches you have.")
 async def vouchcheck(interaction: discord.Interaction):
-
     user_id = str(interaction.user.id)
     try:
         with open("vouches.json", "r") as f:
@@ -553,18 +557,6 @@ async def on_ready():
         print(f"Synced {len(synced)} commands.")
     except Exception as e:
         print(f"Error syncing commands: {e}")
-
-
-# --- READY EVENT ---
-
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
-    await bot.tree.sync()
-    print("Slash commands synced.")
-
-
-# --- RUN ---
 
 TOKEN = os.getenv("RELLY_DISCORD")
 bot.run(TOKEN)
