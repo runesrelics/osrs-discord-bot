@@ -125,7 +125,7 @@ class TicketActions(View):
 
     async def start_vouching(self, channel):
         user_list = list(self.users.values())
-        self.vouch_view = VouchView(self, channel, self.ticket_message, user_list[0], user_list[1])
+        self.vouch_view = VouchView(self, channel, self.ticket_message, user_list[0], user_list[1], self.lister)
         await cleanup_bot_messages(channel)
         await channel.send(f"{user_list[0].mention}, please rate your trade partner:", view=StarRatingView(self.vouch_view, user_list[0]))
         await channel.send(f"{user_list[1].mention}, please rate your trade partner:", view=StarRatingView(self.vouch_view, user_list[1]))
@@ -183,7 +183,7 @@ class ListingRemoveView(View):
 
 
 class VouchView:
-    def __init__(self, ticket_actions, channel, listing_message, user1, user2):
+    def __init__(self, ticket_actions, channel, listing_message, user1, user2, lister):
         self.ticket_actions = ticket_actions
         self.channel = channel
         self.listing_message = listing_message
