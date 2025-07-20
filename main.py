@@ -232,7 +232,7 @@ class VouchView:
         except Exception as e:
             print("Error asking lister to remove listing:", e)
             
-        await self.ticket_actions.archive_ticket(self.channel, self.listing_message)
+        await self.ticket_actions.archive_ticket(self.channel)
 
 
 class StarRatingView(View):
