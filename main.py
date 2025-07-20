@@ -436,37 +436,28 @@ class EditListingModal(Modal, title="Edit Your Listing"):
 
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
-    # Handle slash commands (application_command) separately if needed
     if interaction.type == discord.InteractionType.application_command:
-        # Let the bot handle slash commands via command tree
-        # (Usually no extra code needed here unless custom slash handling)
-        return
+        return  # slash commands handled elsewhere
 
-    # Handle component interactions
     if interaction.type == discord.InteractionType.component:
         custom_id = interaction.data.get("custom_id", "")
 
-        if custom_id == "account_listing":
-            await interaction.response.send_modal(AccountListingModal())
-            return
-
-        elif custom_id == "gp_listing":
-            await interaction.response.send_modal(GPListingModal())
-            return
-
-        elif custom_id.startswith("buy_"):
+        if custom_id.startswith("buy_"):
             try:
                 lister_id = int(custom_id.split("_")[1])
             except ValueError:
+                # Cannot parse lister id, ignore interaction
                 return
 
             buyer = interaction.user
             lister = interaction.guild.get_member(lister_id)
 
             if not lister or lister == buyer:
+                # Respond ONCE with error, no defer here
                 await interaction.response.send_message("❌ Invalid buyer or listing owner.", ephemeral=True)
                 return
 
+            # Defer interaction to get more time for processing
             await interaction.response.defer(ephemeral=True)
 
             overwrites = {
@@ -488,6 +479,7 @@ async def on_interaction(interaction: discord.Interaction):
                 )
 
                 if not interaction.message or not interaction.message.embeds:
+                    # Use followup.send because initial interaction is deferred
                     await interaction.followup.send("❌ Original listing message not found.", ephemeral=True)
                     return
 
@@ -504,8 +496,6 @@ async def on_interaction(interaction: discord.Interaction):
             except Exception as e:
                 await interaction.followup.send(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
 
-
-            
 
 # --- SLASH COMMANDS ---
 
