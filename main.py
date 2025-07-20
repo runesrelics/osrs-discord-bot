@@ -131,7 +131,7 @@ class TicketActions(View):
         await channel.send(f"{user_list[0].mention}, please rate your trade partner:", view=StarRatingView(self.vouch_view, user_list[0]))
         await channel.send(f"{user_list[1].mention}, please rate your trade partner:", view=StarRatingView(self.vouch_view, user_list[1]))
 
-    async def archive_ticket(self, channel):
+    async def archive_ticket(self, channel, listing_message=None):
         archive = channel.guild.get_channel(CHANNELS["archive"])
         transcript_lines = []
         async for msg in channel.history(limit=None, oldest_first=True):
