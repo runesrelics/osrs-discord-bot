@@ -495,7 +495,7 @@ async def on_interaction(interaction: discord.Interaction):
                     embed=embed_copy
                 )
 
-                await ticket_message.edit(view=TicketActions(ticket_message, buyer, lister))
+                await ticket_message.edit(view=TicketActions(ticket_message, interaction.message, buyer, lister))
 
                 await interaction.followup.send(f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True)
 
