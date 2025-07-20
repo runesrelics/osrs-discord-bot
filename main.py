@@ -495,6 +495,58 @@ async def on_interaction(interaction: discord.Interaction):
         f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True
     )
 
+# --- SLASH COMMANDS ---
+
+@bot.tree.command(name="vouchleader", description="Show top 10 vouched users")
+async def vouchleader(interaction: discord.Interaction):
+    if not vouch_data:
+        await interaction.response.send_message("No vouches recorded yet.")
+        return
+
+    sorted_users = sorted(
+        vouch_data.items(),
+        key=lambda item: (item[1]["total_stars"] / item[1]["count"], item[1]["count"]),
+        reverse=True
+    )[:10]
+
+    embed = discord.Embed(title="🏆 Runes & Relics Vouch Leaderboard", color=EMBED_COLOR)
+    embed.set_image(url="https://i.postimg.cc/0jHw8mRV/glowww.png")
+    embed.set_footer(text="Based on average rating and number of vouches")
+
+    for user_id, data in sorted_users:
+        user = interaction.guild.get_member(user_id)
+        if user:
+            avg_stars = data["total_stars"] / data["count"]
+            embed.add_field(
+                name=user.display_name,
+                value=f"⭐ {avg_stars:.2f} from {data['count']} vouches",
+                inline=False
+            )
+
+    await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="vouchcheck", description="Check how many vouches you have.")
+async def vouchcheck(interaction: discord.Interaction):
+
+    user_id = str(interaction.user.id)
+    try:
+        with open("vouches.json", "r") as f:
+            vouch_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        vouch_data = {}
+
+    vouches = vouch_data.get(user_id, 0)
+    await interaction.response.send_message(f"📊 You currently have **{vouches}** vouches.", ephemeral=True)
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} commands.")
+    except Exception as e:
+        print(f"Error syncing commands: {e}")
+
 
 # --- READY EVENT ---
 
