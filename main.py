@@ -447,51 +447,48 @@ async def on_interaction(interaction: discord.Interaction):
         await interaction.response.send_modal(GPListingModal())
 
     elif custom_id.startswith("buy_"):
-    try:
-        lister_id = int(custom_id.split("_")[1])
-    except ValueError:
-        return
+        try:
+            lister_id = int(custom_id.split("_")[1])
+        except ValueError:
+            return
 
-    buyer = interaction.user
-    lister = interaction.guild.get_member(lister_id)
+        buyer = interaction.user
+        lister = interaction.guild.get_member(lister_id)
 
-    if not lister or lister == buyer:
-        await interaction.response.send_message("❌ Invalid buyer or listing owner.", ephemeral=True)
-        return
+        if not lister or lister == buyer:
+            await interaction.response.send_message("❌ Invalid buyer or listing owner.", ephemeral=True)
+            return
 
-    overwrites = {
-        interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-        buyer: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-        lister: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-    }
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            buyer: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+            lister: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+        }
 
-    for role_name in ["Moderator", "Admin"]:
-        role = discord.utils.get(interaction.guild.roles, name=role_name)
-        if role:
-            overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+        for role_name in ["Moderator", "Admin"]:
+            role = discord.utils.get(interaction.guild.roles, name=role_name)
+            if role:
+                overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
-    # Defer the interaction response (acknowledge, no message yet)
-    await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
 
-    # Create the ticket channel
-    ticket_channel = await interaction.guild.create_text_channel(
-        name=f"ticket-{buyer.name}-and-{lister.name}",
-        overwrites=overwrites,
-        topic="Trade ticket between buyer and seller."
-    )
+        ticket_channel = await interaction.guild.create_text_channel(
+            name=f"ticket-{buyer.name}-and-{lister.name}",
+            overwrites=overwrites,
+            topic="Trade ticket between buyer and seller."
+        )
 
-    # Send ephemeral confirmation message as a followup
-    await interaction.followup.send(
-        f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True
-    )
+        await interaction.followup.send(
+            f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True
+        )
 
-    # Send the ticket message in the new channel with buttons
-    embed_copy = interaction.message.embeds[0]
-    await ticket_channel.send(
-        f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
-        embed=embed_copy,
-        view=TicketActions(interaction.message, buyer, lister)
-    )
+        embed_copy = interaction.message.embeds[0]
+        await ticket_channel.send(
+            f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
+            embed=embed_copy,
+            view=TicketActions(interaction.message, buyer, lister)
+        )
+
 
 
 # --- SLASH COMMANDS ---
