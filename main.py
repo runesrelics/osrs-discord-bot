@@ -307,7 +307,6 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
         listing_embed.set_thumbnail(url=BRANDING_IMAGE)
         listing_embed.add_field(name="Value", value=self.price.value)
 
-        view = ListingView(lister=interaction.user)
 
         listing_channel = interaction.guild.get_channel(target_channel_id)
         create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
@@ -343,7 +342,11 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
             except:
                 pass
 
-        msg = await listing_channel.send(embed=listing_embed, view=view, files=files)
+        msg = await listing_channel.send(embed=listing_embed, view=None, files=files)
+        
+        view = ListingView(lister=interaction.user, listing_message=msg)
+        
+        await msg.edit(view=view)
 
         async for old_msg in create_trade_channel.history(limit=50):
             if old_msg.author == interaction.user:
@@ -372,10 +375,12 @@ class GPListingModal(Modal, title="List OSRS GP"):
         listing_embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         listing_embed.set_thumbnail(url=BRANDING_IMAGE)
 
-        view = ListingView(lister=interaction.user)
-
         listing_channel = interaction.guild.get_channel(target_channel_id)
-        msg = await listing_channel.send(embed=listing_embed, view=view)
+        msg = await listing_channel.send(embed=listing_embed)
+        
+        view = ListingView(lister=interaction.user, listing_message=msg)
+        
+        await msg.edit(view=view)
 
         create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
         async for old_msg in create_trade_channel.history(limit=50):
@@ -389,7 +394,7 @@ class GPListingModal(Modal, title="List OSRS GP"):
 
 
 class ListingView(View):
-    def __init__(self, lister: discord.User):
+    def __init__(self, lister: discord.User, listing_message: discord.Message):
         super().__init__(timeout=None)
         self.lister = lister
         self.listing_message = listing_message
