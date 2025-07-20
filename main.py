@@ -448,52 +448,59 @@ async def on_interaction(interaction: discord.Interaction):
         await interaction.response.send_modal(GPListingModal())
 
     elif custom_id.startswith("buy_"):
-        await interaction.response.defer(ephemeral=True)  # Moved to top
+        try:
+            lister_id = int(custom_id.split("_")[1])
+        except ValueError:
+            return
 
-    try:
-        lister_id = int(custom_id.split("_")[1])
-    except ValueError:
-        return
+        buyer = interaction.user
+        lister = interaction.guild.get_member(lister_id)
 
-    buyer = interaction.user
-    lister = interaction.guild.get_member(lister_id)
+        # 🚨 MUST defer FIRST, to acknowledge interaction
+        await interaction.response.defer(ephemeral=True)
 
-    if not lister or lister == buyer:
-        await interaction.followup.send("❌ Invalid buyer or listing owner.", ephemeral=True)
-        return
+        if not lister or lister == buyer:
+            await interaction.followup.send("❌ Invalid buyer or listing owner.", ephemeral=True)
+            return
 
-    overwrites = {
-        interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-        buyer: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-        lister: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-    }
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            buyer: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+            lister: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+        }
 
-    for role_name in ["Moderator", "Admin"]:
-        role = discord.utils.get(interaction.guild.roles, name=role_name)
-        if role:
-            overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+        for role_name in ["Moderator", "Admin"]:
+            role = discord.utils.get(interaction.guild.roles, name=role_name)
+            if role:
+                overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
-    ticket_channel = await interaction.guild.create_text_channel(
-        name=f"ticket-{buyer.name}-and-{lister.name}",
-        overwrites=overwrites,
-        topic="Trade ticket between buyer and seller."
-    )
+        try:
+            ticket_channel = await interaction.guild.create_text_channel(
+                name=f"ticket-{buyer.name}-and-{lister.name}",
+                overwrites=overwrites,
+                topic="Trade ticket between buyer and seller."
+            )
 
-    if not interaction.message or not interaction.message.embeds:
-        await interaction.followup.send("❌ Original listing message not found.", ephemeral=True)
-        return
+            # 🔒 Check that original message and embed exist
+            if not interaction.message or not interaction.message.embeds:
+                await interaction.followup.send("❌ Original listing message not found.", ephemeral=True)
+                return
 
-    embed_copy = interaction.message.embeds[0]
+            embed_copy = interaction.message.embeds[0]
 
-    await ticket_channel.send(
-        f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
-        embed=embed_copy,
-        view=TicketActions(interaction.message, buyer, lister)
-    )
+            await ticket_channel.send(
+                f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
+                embed=embed_copy,
+                view=TicketActions(interaction.message, buyer, lister)
+            )
 
-    await interaction.followup.send(
-        f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True
-    )
+            await interaction.followup.send(
+                f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True
+            )
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
+
 
 # --- SLASH COMMANDS ---
 
