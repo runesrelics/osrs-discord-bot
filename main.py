@@ -270,6 +270,7 @@ class CommentModal(Modal, title="Submit Your Vouch Comment"):
     async def on_submit(self, interaction: discord.Interaction):
         comment_value = self.comment.value.strip() or "No comment"
         self.vouch_view.submit_vouch(self.user_submitting.id, self.star_rating, comment_value)
+        await interaction.response.defer(ephemeral=True)
         await interaction.response.send_message("✅ Your vouch has been recorded! Waiting for other party to vouch.", ephemeral=True)
         if self.vouch_view.all_vouches_submitted():
             await self.vouch_view.finish_vouching()
