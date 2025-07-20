@@ -162,6 +162,26 @@ class TicketActions(View):
 
         await channel.delete()
 
+class ListingRemoveView(View):
+    def __init__(self, listing_message):
+        super().__init__(timeout=60)
+        self.listing_message = listing_message
+        self.decision = None
+
+    @discord.ui.button(label="🗑️ Yes, remove listing", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("Listing will be removed.", ephemeral=True)
+        await self.listing_message.delete()
+        self.decision = True
+        self.stop()
+
+    @discord.ui.button(label="❌ No, keep listing", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("Listing will be kept.", ephemeral=True)
+        self.decision = False
+        self.stop()
+
+
 class VouchView:
     def __init__(self, ticket_actions, channel, listing_message, user1, user2):
         self.ticket_actions = ticket_actions
@@ -169,6 +189,7 @@ class VouchView:
         self.listing_message = listing_message
         self.users = {str(user1.id): user1, str(user2.id): user2}
         self.vouches = {}
+        self.lister = lister
 
     def submit_vouch(self, user_id, stars, comment):
         user_id_str = str(user_id)
@@ -193,7 +214,18 @@ class VouchView:
             embed.add_field(name=f"{user.display_name} ({v.get('stars', 0)}⭐)", value=v.get("comment", "No comment"), inline=False)
 
         await vouch_post_channel.send(embed=embed)
-        await self.channel.send("✅ Both vouches received. Archiving ticket now.")
+        await self.channel.send("✅ Both vouches received.")
+        try:
+            if self.listing_message and self.lister:
+                view = ListingRemoveView(self.listing_message)
+                await self.channel.send(
+                    f"{self.lister.mention}, would you like to remove your original listing?",
+                    view=view
+                )
+                await view.wait()
+        except Exception as e:
+            print("Error asking lister to remove listing:", e)
+            
         await self.ticket_actions.archive_ticket(self.channel, self.listing_message)
 
 
