@@ -183,7 +183,7 @@ class GPTypeSelectView(discord.ui.View):
             await interaction.response.send_message("Only you can select this.", ephemeral=True)
             return
         self.choice = "selling"
-        await interaction.response.send_modal(GPListingModal))
+        await interaction.response.send_modal(GPListingModal())
         self.stop()
 
 
