@@ -174,8 +174,7 @@ class GPTypeSelectView(discord.ui.View):
         if interaction.user != self.user:
             await interaction.response.send_message("Only you can select this.", ephemeral=True)
             return
-        self.choice = "buying"
-        await interaction.response.send_message("You selected **BUYING**. Please fill in your listing details.", ephemeral=True)
+        await interaction.response.send_modal(GPListingModal("buying"))
         self.stop()
 
     @discord.ui.button(label="SELLING", style=discord.ButtonStyle.danger)
@@ -184,7 +183,7 @@ class GPTypeSelectView(discord.ui.View):
             await interaction.response.send_message("Only you can select this.", ephemeral=True)
             return
         self.choice = "selling"
-        await interaction.response.send_message("You selected **SELLING**. Please fill in your listing details.", ephemeral=True)
+        await interaction.response.send_modal(GPListingModal))
         self.stop()
 
 
@@ -557,14 +556,8 @@ async def on_interaction(interaction: discord.Interaction):
                 view=view,
                 ephemeral=True
             )
-            await view.wait()
-            if view.choice is None:
-                await interaction.followup.send("Selection timed out.", ephemeral=True)
-                return
-
-        await interaction.followup.send("Opening listing modal...",ephemeral=True)
-        await interaction.response.send_modal(GPListingModal(view.choice))
-        return
+           
+            return
 
         if custom_id.startswith("buy_"):
             try:
