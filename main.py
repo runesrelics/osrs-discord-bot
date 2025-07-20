@@ -462,7 +462,7 @@ class ListingView(View):
         self.listing_message = listing_message
 
         buy_button = Button(
-            label="BUY",
+            label="TRADE",
             style=discord.ButtonStyle.success,
             custom_id=f"buy_{lister.id}"
         )
