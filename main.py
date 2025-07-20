@@ -418,10 +418,14 @@ class GPListingModal(Modal, title="List OSRS GP"):
         super().__init__()
         self.choice = choice
         self.amount = TextInput(label="Amount", placeholder="e.g. 500M", required=True)
+        self.rate = TextInput(label="What rate?", placeholder="e.g. 0.16usd", required=True)
         self.payment = TextInput(label="Accepted payment methods", placeholder="BTC, OS, PayPal...")
+        
 
         self.add_item(self.amount)
+        self.add_item(self.rate)
         self.add_item(self.payment)
+        
 
     async def on_submit(self, interaction: discord.Interaction):
         trusted = any("trusted" in role.name.lower() for role in interaction.user.roles)
@@ -432,7 +436,12 @@ class GPListingModal(Modal, title="List OSRS GP"):
 
         listing_embed = discord.Embed(
             title="💰 OSRS GP Listing",
-            description=f"{role_text}\n\n**Amount:** {self.amount.value}\n**Payment Methods:** {self.payment.value}",
+            description=(
+                f"{role_text}\n\n"
+                f"**Amount:** {self.amount.value}\n"
+                f"**Payment Methods:** {self.payment.value}\n"
+                f"**Rate:** {self.rate.value}"  # <-- Include rate here
+            ),
             color=color
         )
         listing_embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
