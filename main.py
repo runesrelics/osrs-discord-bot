@@ -398,7 +398,7 @@ class ListingView(View):
             style=discord.ButtonStyle.success,
             custom_id=f"buy_{lister.id}"
         )
-        buy_button.callback = self.buy_button_callback
+        
         self.add_item(buy_button)
 
         edit_button = Button(
