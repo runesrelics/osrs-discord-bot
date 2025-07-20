@@ -262,7 +262,7 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
         elif "iron" in account_type:
             target_channel_id = target_channels["ironman"]
         else:
-            await interaction.response.send_message("❌ Invalid account type. Please include 'Main', 'PvP', or 'Ironman' in your category.", ephemeral=True)
+            await interaction.response.send_message("❌ Invalid account type.", ephemeral=True)
             return
 
         listing_embed = discord.Embed(
@@ -274,14 +274,13 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
         listing_embed.set_thumbnail(url=BRANDING_IMAGE)
         listing_embed.add_field(name="Value", value=self.price.value)
 
-        view = View()
-        view.add_item(Button(label="🗡️ BUY", style=discord.ButtonStyle.success, custom_id=f"buy_{interaction.user.id}"))
+        view = ListingView(lister=interaction.user)
 
         listing_channel = interaction.guild.get_channel(target_channel_id)
         create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
 
         await interaction.response.send_message(
-            "📸 Please upload **up to 5 images** in this channel. When finished, type **'done'**.",
+            "Please upload up to 5 images in this channel. When finished, type 'done'.",
             ephemeral=True
         )
 
@@ -302,22 +301,17 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
             if msg.attachments:
                 images.extend(msg.attachments)
             else:
-                await create_trade_channel.send(f"{interaction.user.mention} Please upload images or type **'done'** to finish.", delete_after=10)
+                await create_trade_channel.send(f"{interaction.user.mention} Please upload images or type 'done' to finish.", delete_after=10)
 
         files = []
         for img in images[:5]:
             try:
                 files.append(await img.to_file())
-            except Exception as e:
-                print(f"Error processing image: {e}")
+            except:
+                pass
 
-        try:
-            await listing_channel.send(embed=listing_embed, view=view, files=files)
-        except Exception as e:
-            await interaction.followup.send("❌ Failed to post listing. Please try again later.", ephemeral=True)
-            return
+        msg = await listing_channel.send(embed=listing_embed, view=view, files=files)
 
-        # Clean up old messages
         async for old_msg in create_trade_channel.history(limit=50):
             if old_msg.author == interaction.user:
                 try:
@@ -326,7 +320,6 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
                     pass
 
         await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
-
 
 
 class GPListingModal(Modal, title="List OSRS GP"):
@@ -346,14 +339,10 @@ class GPListingModal(Modal, title="List OSRS GP"):
         listing_embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         listing_embed.set_thumbnail(url=BRANDING_IMAGE)
 
+        view = ListingView(lister=interaction.user)
+
         listing_channel = interaction.guild.get_channel(target_channel_id)
-
-        # Send listing message first (no view)
-        msg = await listing_channel.send(embed=listing_embed)
-
-        # Now create view with message reference
-        view = ListingView(lister=interaction.user, message=msg)
-        await msg.edit(view=view)
+        msg = await listing_channel.send(embed=listing_embed, view=view)
 
         create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
         async for old_msg in create_trade_channel.history(limit=50):
@@ -367,13 +356,10 @@ class GPListingModal(Modal, title="List OSRS GP"):
 
 
 class ListingView(View):
-    def __init__(self, lister: discord.User, message: discord.Message):
+    def __init__(self, lister: discord.User):
         super().__init__(timeout=None)
         self.lister = lister
-        self.message = message
 
-
-        # ✅ BUY button with dynamic custom_id (includes lister ID)
         buy_button = Button(
             label="BUY",
             style=discord.ButtonStyle.success,
@@ -382,7 +368,6 @@ class ListingView(View):
         buy_button.callback = self.buy_button_callback
         self.add_item(buy_button)
 
-        # ✏️ EDIT button
         edit_button = Button(
             emoji="✏️",
             style=discord.ButtonStyle.secondary,
@@ -391,7 +376,6 @@ class ListingView(View):
         edit_button.callback = self.edit_listing
         self.add_item(edit_button)
 
-        # ❌ DELETE button
         delete_button = Button(
             emoji="❌",
             style=discord.ButtonStyle.secondary,
@@ -400,26 +384,23 @@ class ListingView(View):
         delete_button.callback = self.delete_listing
         self.add_item(delete_button)
 
-    # ✅ BUY button callback - only acknowledges interaction
     async def buy_button_callback(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.send_message("Processing your purchase...", ephemeral=True)
+        # Ticket creation handled in on_interaction for "buy_..."
 
-        # Ticket creation is handled in on_interaction via custom_id="buy_<lister_id>"
-
-    # ✏️ EDIT button logic
     async def edit_listing(self, interaction: discord.Interaction):
         if interaction.user.id != self.lister.id:
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
             return
         await interaction.response.send_modal(EditListingModal(interaction.message, self.lister))
 
-    # ❌ DELETE button logic
     async def delete_listing(self, interaction: discord.Interaction):
         if interaction.user.id != self.lister.id:
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
             return
         await interaction.message.delete()
         await interaction.response.send_message("🗑️ Listing deleted.", ephemeral=True)
+
 
 class EditListingModal(Modal, title="Edit Your Listing"):
     def __init__(self, message: discord.Message, lister: discord.User):
@@ -438,14 +419,13 @@ class EditListingModal(Modal, title="Edit Your Listing"):
         embed.description = self.description.value
 
         # Update the "Value" field in the embed if it exists
-        for i, field in enumerate(embed.fields):
+        for field in embed.fields:
             if field.name.lower() == "value":
-                embed.set_field_at(i, name=field.name, value=self.price.value, inline=field.inline)
+                field.value = self.price.value
                 break
 
         await self.message.edit(embed=embed)
         await interaction.response.send_message("✅ Listing updated!", ephemeral=True)
-
 
 
 # --- INTERACTION HANDLER ---
