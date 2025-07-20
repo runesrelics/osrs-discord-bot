@@ -392,6 +392,7 @@ class ListingView(View):
     def __init__(self, lister: discord.User):
         super().__init__(timeout=None)
         self.lister = lister
+        self.listing_message = listing_message
 
         buy_button = Button(
             label="BUY",
@@ -431,8 +432,14 @@ class ListingView(View):
         if interaction.user.id != self.lister.id:
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
             return
-        await interaction.message.delete()
-        await interaction.response.send_message("🗑️ Listing deleted.", ephemeral=True)
+        # Show confirmation buttons
+        view = ListingRemoveView(self.listing_message)
+        await interaction.response.send_message(
+            "Are you sure you want to delete your listing?",
+            view=view,
+            ephemeral=True
+        )
+
 
 
 class EditListingModal(Modal, title="Edit Your Listing"):
