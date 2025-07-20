@@ -364,10 +364,11 @@ class GPListingModal(Modal, title="List OSRS GP"):
 
 
 class ListingView(View):
-    def __init__(self, lister: discord.User):
+    def __init__(self, lister: discord.User, message: discord.Message):
         super().__init__(timeout=None)
         self.lister = lister
         self.message = message
+
 
         # ✅ BUY button with dynamic custom_id (includes lister ID)
         buy_button = Button(
