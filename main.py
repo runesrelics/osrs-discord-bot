@@ -200,7 +200,7 @@ class ListingRemoveView(View):
     @discord.ui.button(label="🗑️ Yes, remove listing", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.lister.id:
-            await interaction.response.send_message("🚫 Only the listing owner can use this.", ephemeral=True)
+            await interaction.response.send_message("🚫 Only the listing owner can use this.", ephemeral=True, delete_after=3)
             return
 
         await interaction.response.send_message("🛑Listing will be removed and the ticket archived.", ephemeral=True)
@@ -210,7 +210,7 @@ class ListingRemoveView(View):
     @discord.ui.button(label="❌ No, keep listing", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.lister.id:
-            await interaction.response.send_message("🚫 Only the listing owner can use this.", ephemeral=True)
+            await interaction.response.send_message("🚫 Only the listing owner can use this.", ephemeral=True, delete_after=3)
             return
 
         await interaction.response.send_message("✅ Listing will be kept. Archiving the ticket.", ephemeral=True)
@@ -226,14 +226,14 @@ class DirectDeleteView(View):
     @discord.ui.button(label="🗑️ Delete Listing", style=discord.ButtonStyle.danger)
     async def delete_listing(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.lister.id:
-            await interaction.response.send_message("🚫 You are not the owner of this listing.", ephemeral=True)
+            await interaction.response.send_message("🚫 You are not the owner of this listing.", ephemeral=True, delete_after=3)
             return
 
         try:
             await self.listing_message.delete()
-            await interaction.response.send_message("✅ Listing deleted.", ephemeral=True)
+            await interaction.response.send_message("✅ Listing deleted.", ephemeral=True, delete_after=3)
         except discord.NotFound:
-            await interaction.response.send_message("⚠️ Could not delete the listing message (already gone?).", ephemeral=True)
+            await interaction.response.send_message("⚠️ Could not delete the listing message (already gone?).", ephemeral=True, delete_after=3)
 
 
 
@@ -428,7 +428,7 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
                 except:
                     pass
 
-        await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
+        await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True, delete_after=3)
 
 
 class GPListingModal(Modal, title="List OSRS GP"):
@@ -445,41 +445,52 @@ class GPListingModal(Modal, title="List OSRS GP"):
         self.add_item(self.payment)
         
 
-    async def on_submit(self, interaction: discord.Interaction):
-        trusted = any("trusted" in role.name.lower() for role in interaction.user.roles)
-        target_channel_id = (CHANNELS["trusted"] if trusted else CHANNELS["public"])["gp"]
+async def on_submit(self, interaction: discord.Interaction):
+    trusted = any("trusted" in role.name.lower() for role in interaction.user.roles)
+    target_channel_id = (CHANNELS["trusted"] if trusted else CHANNELS["public"])["gp"]
 
-        color = discord.Color.green() if self.choice == "buying" else discord.Color.red()
-        role_text = "**BUYER**" if self.choice == "buying" else "**SELLER**"
+    color = discord.Color.green() if self.choice == "buying" else discord.Color.red()
+    role_text = "**BUYER**" if self.choice == "buying" else "**SELLER**"
 
-        listing_embed = discord.Embed(
-            title="💰 OSRS GP Listing",
-            description=(
-                f"{role_text}\n\n"
-                f"**Amount:** {self.amount.value}\n"
-                f"**Payment Methods:** {self.payment.value}\n"
-                f"**Rate:** {self.rate.value}"  # <-- Include rate here
-            ),
-            color=color
-        )
-        listing_embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
-        listing_embed.set_thumbnail(url=BRANDING_IMAGE)
+    listing_embed = discord.Embed(
+        title="💰 OSRS GP Listing",
+        description=(
+            f"{role_text}\n\n"
+            f"**Amount:** {self.amount.value}\n"
+            f"**Payment Methods:** {self.payment.value}\n"
+            f"**Rate:** {self.rate.value}"
+        ),
+        color=color
+    )
+    listing_embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+    listing_embed.set_thumbnail(url=BRANDING_IMAGE)
 
-        listing_channel = interaction.guild.get_channel(target_channel_id)
-        msg = await listing_channel.send(embed=listing_embed)
-        
-        view = ListingView(lister=interaction.user, listing_message=msg)
-        await msg.edit(view=view)
+    listing_channel = interaction.guild.get_channel(target_channel_id)
+    msg = await listing_channel.send(embed=listing_embed)
 
-        create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
-        async for old_msg in create_trade_channel.history(limit=50):
-            if old_msg.author == interaction.user:
-                try:
-                    await old_msg.delete()
-                except:
-                    pass
+    view = ListingView(lister=interaction.user, listing_message=msg)
+    await msg.edit(view=view)
 
-        await interaction.response.send_message("✅ Your GP listing has been posted!", ephemeral=True)
+    # Clean up user's messages in the create_trade channel
+    create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
+    async for old_msg in create_trade_channel.history(limit=50):
+        if old_msg.author == interaction.user:
+            try:
+                await old_msg.delete()
+            except:
+                pass
+
+    # Try to delete the ephemeral message that triggered this modal
+    try:
+        await interaction.message.delete()
+    except Exception as e:
+        print(f"Could not delete ephemeral message: {e}")
+
+    # Send confirmation and auto-delete it after 3 seconds
+    await interaction.response.send_message(
+        "✅ Your GP listing has been posted!", ephemeral=True
+    )
+
 
 
 class ListingView(View):
