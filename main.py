@@ -533,17 +533,17 @@ class ListingView(View):
             await interaction.response.send_message("❌ Unknown listing type, cannot edit.", ephemeral=True)
 
 
-     async def delete_listing(self, interaction: discord.Interaction):
-         if interaction.user.id != self.lister.id:
-             await interaction.response.send_message("You can't use this button.", ephemeral=True)
-             return
+    async def delete_listing(self, interaction: discord.Interaction):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("You can't use this button.", ephemeral=True)
+            return
 
-         view = DirectDeleteView(self.lister, self.listing_message)
-         await interaction.response.send_message(
-             "Are you sure you want to delete your listing?",
-             view=view,
-             ephemeral=True
-         )
+        view = DirectDeleteView(self.lister, self.listing_message)
+        await interaction.response.send_message(
+            "Are you sure you want to delete your listing?",
+            view=view,
+            ephemeral=True
+        )
 
 
 
