@@ -493,7 +493,6 @@ class ListingView(View):
             style=discord.ButtonStyle.success,
             custom_id=f"buy_{lister.id}"
         )
-        
         self.add_item(buy_button)
 
         edit_button = Button(
@@ -515,30 +514,23 @@ class ListingView(View):
     async def buy_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
+    async def edit_listing(self, interaction: discord.Interaction):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("You can't use this button.", ephemeral=True)
+            return
+        await interaction.response.send_modal(EditListingModal(self.listing_message, self.lister))
 
     async def delete_listing(self, interaction: discord.Interaction):
         if interaction.user.id != self.lister.id:
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
             return
-
-        try:
-            await self.listing_message.delete()
-            await interaction.response.send_message("✅ Listing deleted.", ephemeral=True)
-        except discord.NotFound:
-            await interaction.response.send_message("⚠️ Couldn't delete the message (maybe already deleted).", ephemeral=True)
-
-
-    async def delete_listing(self, interaction: discord.Interaction):
-        if interaction.user.id != self.lister.id:
-            await interaction.response.send_message("You can't use this button.", ephemeral=True)
-            return
-        # Show confirmation buttons
         view = ListingRemoveView(self.listing_message)
         await interaction.response.send_message(
             "Are you sure you want to delete your listing?",
             view=view,
             ephemeral=True
         )
+
 
 
 
