@@ -128,8 +128,12 @@ class TicketActions(View):
         user_list = list(self.users.values())
         self.vouch_view = VouchView(self, channel, self.listing_message, user_list[0], user_list[1], self.lister)
         await cleanup_bot_messages(channel)
-        await channel.send(f"{user_list[0].mention}, please rate your trade partner:", view=StarRatingView(self.vouch_view, user_list[0]))
-        await channel.send(f"{user_list[1].mention}, please rate your trade partner:", view=StarRatingView(self.vouch_view, user_list[1]))
+        view1 = StarRatingView(self.vouch_view, user_list[0])
+        view2 = StarRatingView(self.vouch_view, user_list[1])
+        
+        await channel.send(f"{user_list[0].mention}, please rate your trade partner:", view=view1)
+        await channel.send(f"{user_list[1].mention}, please rate your trade partner:", view=view2)
+
 
     async def archive_ticket(self, channel, listing_message=None):
         archive = channel.guild.get_channel(CHANNELS["archive"])
