@@ -524,12 +524,14 @@ class ListingView(View):
         if interaction.user.id != self.lister.id:
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
             return
-        view = ListingRemoveView(self.listing_message)
+
+        view = DirectDeleteView(self.lister, self.listing_message)
         await interaction.response.send_message(
             "Are you sure you want to delete your listing?",
             view=view,
             ephemeral=True
         )
+
 
 
 
