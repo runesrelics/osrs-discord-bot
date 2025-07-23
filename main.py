@@ -514,36 +514,36 @@ class ListingView(View):
     async def buy_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-async def edit_listing(self, interaction: discord.Interaction):
-    if interaction.user.id != self.lister.id:
-        await interaction.response.send_message("You can't use this button.", ephemeral=True)
-        return
-
-    embed = self.listing_message.embeds[0]
-
-    # Check embed title to decide which modal to show
-    if "gp" in embed.title.lower():
-        # GP listing modal
-        await interaction.response.send_modal(GPListingEditModal(self.listing_message, self.lister))
-    elif "account" in embed.title.lower():
-        # Account listing modal
-        await interaction.response.send_modal(AccountListingEditModal(self.listing_message, self.lister))
-    else:
-        # Fallback to a generic modal or an error message
-        await interaction.response.send_message("❌ Unknown listing type, cannot edit.", ephemeral=True)
-
-
-    async def delete_listing(self, interaction: discord.Interaction):
+    async def edit_listing(self, interaction: discord.Interaction):
         if interaction.user.id != self.lister.id:
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
             return
+            
+        embed = self.listing_message.embeds[0]
 
-        view = DirectDeleteView(self.lister, self.listing_message)
-        await interaction.response.send_message(
-            "Are you sure you want to delete your listing?",
-            view=view,
-            ephemeral=True
-        )
+    # Check embed title to decide which modal to show
+        if "gp" in embed.title.lower():
+        # GP listing modal
+            await interaction.response.send_modal(GPListingEditModal(self.listing_message, self.lister))
+        elif "account" in embed.title.lower():
+        # Account listing modal
+            await interaction.response.send_modal(AccountListingEditModal(self.listing_message, self.lister))
+        else:
+        # Fallback to a generic modal or an error message
+            await interaction.response.send_message("❌ Unknown listing type, cannot edit.", ephemeral=True)
+
+
+     async def delete_listing(self, interaction: discord.Interaction):
+         if interaction.user.id != self.lister.id:
+             await interaction.response.send_message("You can't use this button.", ephemeral=True)
+             return
+
+         view = DirectDeleteView(self.lister, self.listing_message)
+         await interaction.response.send_message(
+             "Are you sure you want to delete your listing?",
+             view=view,
+             ephemeral=True
+         )
 
 
 
