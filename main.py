@@ -565,23 +565,42 @@ class AccountListingEditModal(Modal, title="Edit Your Account Listing"):
         self.message = message
         self.lister = lister
 
-        self.description = TextInput(label="New Description", style=discord.TextStyle.paragraph, required=True)
-        self.price = TextInput(label="New Price / Value", required=True)
+        self.description = TextInput(
+            label="New Description",
+            style=discord.TextStyle.paragraph,
+            required=True
+        )
+        self.price = TextInput(
+            label="New Price / Value",
+            required=True
+        )
 
         self.add_item(self.description)
         self.add_item(self.price)
 
     async def on_submit(self, interaction: discord.Interaction):
         embed = self.message.embeds[0]
-        embed.description = self.description.value
 
+        # Rebuild fields, replacing the "Value" field with the new price
+        new_fields = []
         for field in embed.fields:
             if field.name.lower() == "value":
-                field.value = self.price.value
-                break
+                new_fields.append((field.name, self.price.value, field.inline))
+            else:
+                new_fields.append((field.name, field.value, field.inline))
+
+        embed.clear_fields()
+
+        for name, value, inline in new_fields:
+            embed.add_field(name=name, value=value, inline=inline)
+
+        # Update the description with new value
+        embed.description = self.description.value
 
         await self.message.edit(embed=embed)
         await interaction.response.send_message("✅ Account listing updated!", ephemeral=True)
+
+
 
 
 class GPListingEditModal(Modal, title="Edit Your GP Listing"):
