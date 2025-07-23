@@ -438,58 +438,57 @@ class GPListingModal(Modal, title="List OSRS GP"):
         self.amount = TextInput(label="Amount", placeholder="e.g. 500M", required=True)
         self.rate = TextInput(label="What rate?", placeholder="e.g. 0.16usd", required=True)
         self.payment = TextInput(label="Accepted payment methods", placeholder="BTC, OS, PayPal...")
-        
 
         self.add_item(self.amount)
         self.add_item(self.rate)
         self.add_item(self.payment)
-        
 
-async def on_submit(self, interaction: discord.Interaction):
-    trusted = any("trusted" in role.name.lower() for role in interaction.user.roles)
-    target_channel_id = (CHANNELS["trusted"] if trusted else CHANNELS["public"])["gp"]
+    async def on_submit(self, interaction: discord.Interaction):
+        trusted = any("trusted" in role.name.lower() for role in interaction.user.roles)
+        target_channel_id = (CHANNELS["trusted"] if trusted else CHANNELS["public"])["gp"]
 
-    color = discord.Color.green() if self.choice == "buying" else discord.Color.red()
-    role_text = "**BUYER**" if self.choice == "buying" else "**SELLER**"
+        color = discord.Color.green() if self.choice == "buying" else discord.Color.red()
+        role_text = "**BUYER**" if self.choice == "buying" else "**SELLER**"
 
-    listing_embed = discord.Embed(
-        title="💰 OSRS GP Listing",
-        description=(
-            f"{role_text}\n\n"
-            f"**Amount:** {self.amount.value}\n"
-            f"**Payment Methods:** {self.payment.value}\n"
-            f"**Rate:** {self.rate.value}"
-        ),
-        color=color
-    )
-    listing_embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
-    listing_embed.set_thumbnail(url=BRANDING_IMAGE)
+        listing_embed = discord.Embed(
+            title="💰 OSRS GP Listing",
+            description=(
+                f"{role_text}\n\n"
+                f"**Amount:** {self.amount.value}\n"
+                f"**Payment Methods:** {self.payment.value}\n"
+                f"**Rate:** {self.rate.value}"
+            ),
+            color=color
+        )
+        listing_embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        listing_embed.set_thumbnail(url=BRANDING_IMAGE)
 
-    listing_channel = interaction.guild.get_channel(target_channel_id)
-    msg = await listing_channel.send(embed=listing_embed)
+        listing_channel = interaction.guild.get_channel(target_channel_id)
+        msg = await listing_channel.send(embed=listing_embed)
 
-    view = ListingView(lister=interaction.user, listing_message=msg)
-    await msg.edit(view=view)
+        view = ListingView(lister=interaction.user, listing_message=msg)
+        await msg.edit(view=view)
 
-    # Clean up user's messages in the create_trade channel
-    create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
-    async for old_msg in create_trade_channel.history(limit=50):
-        if old_msg.author == interaction.user:
-            try:
-                await old_msg.delete()
-            except:
-                pass
+        # Clean up user's messages in the create_trade channel
+        create_trade_channel = interaction.guild.get_channel(CHANNELS["create_trade"])
+        async for old_msg in create_trade_channel.history(limit=50):
+            if old_msg.author == interaction.user:
+                try:
+                    await old_msg.delete()
+                except:
+                    pass
 
-    # Try to delete the ephemeral message that triggered this modal
-    try:
-        await interaction.message.delete()
-    except Exception as e:
-        print(f"Could not delete ephemeral message: {e}")
+        # Try to delete the ephemeral message that triggered this modal
+        try:
+            await interaction.message.delete()
+        except Exception as e:
+            print(f"Could not delete ephemeral message: {e}")
 
-    # Send confirmation and auto-delete it after 3 seconds
-    await interaction.response.send_message(
-        "✅ Your GP listing has been posted!", ephemeral=True
-    )
+        # Send confirmation and auto-delete it after 3 seconds
+        await interaction.response.send_message(
+            "✅ Your GP listing has been posted!", ephemeral=True, delete_after=3
+        )
+
 
 
 
