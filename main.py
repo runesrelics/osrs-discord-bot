@@ -514,11 +514,24 @@ class ListingView(View):
     async def buy_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-    async def edit_listing(self, interaction: discord.Interaction):
-        if interaction.user.id != self.lister.id:
-            await interaction.response.send_message("You can't use this button.", ephemeral=True)
-            return
-        await interaction.response.send_modal(EditListingModal(self.listing_message, self.lister))
+async def edit_listing(self, interaction: discord.Interaction):
+    if interaction.user.id != self.lister.id:
+        await interaction.response.send_message("You can't use this button.", ephemeral=True)
+        return
+
+    embed = self.listing_message.embeds[0]
+
+    # Check embed title to decide which modal to show
+    if "gp" in embed.title.lower():
+        # GP listing modal
+        await interaction.response.send_modal(GPListingEditModal(self.listing_message, self.lister))
+    elif "account" in embed.title.lower():
+        # Account listing modal
+        await interaction.response.send_modal(AccountListingEditModal(self.listing_message, self.lister))
+    else:
+        # Fallback to a generic modal or an error message
+        await interaction.response.send_message("❌ Unknown listing type, cannot edit.", ephemeral=True)
+
 
     async def delete_listing(self, interaction: discord.Interaction):
         if interaction.user.id != self.lister.id:
@@ -536,7 +549,7 @@ class ListingView(View):
 
 
 
-class EditListingModal(Modal, title="Edit Your Listing"):
+class AccountListingEditModal(Modal, title="Edit Your Account Listing"):
     def __init__(self, message: discord.Message, lister: discord.User):
         super().__init__()
         self.message = message
@@ -552,14 +565,44 @@ class EditListingModal(Modal, title="Edit Your Listing"):
         embed = self.message.embeds[0]
         embed.description = self.description.value
 
-        # Update the "Value" field in the embed if it exists
         for field in embed.fields:
             if field.name.lower() == "value":
                 field.value = self.price.value
                 break
 
         await self.message.edit(embed=embed)
-        await interaction.response.send_message("✅ Listing updated!", ephemeral=True)
+        await interaction.response.send_message("✅ Account listing updated!", ephemeral=True)
+
+
+class GPListingEditModal(Modal, title="Edit Your GP Listing"):
+    def __init__(self, message: discord.Message, lister: discord.User):
+        super().__init__()
+        self.message = message
+        self.lister = lister
+
+        self.amount = TextInput(label="Amount", placeholder="e.g. 500M", required=True)
+        self.rate = TextInput(label="Rate", placeholder="e.g. 0.16usd", required=True)
+        self.payment = TextInput(label="Accepted Payment Methods", required=True)
+
+        self.add_item(self.amount)
+        self.add_item(self.rate)
+        self.add_item(self.payment)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = self.message.embeds[0]
+
+        # Update the embed description to reflect new GP info
+        role_text = "**BUYER**" if "BUYER" in embed.description else "**SELLER**"
+        embed.description = (
+            f"{role_text}\n\n"
+            f"**Amount:** {self.amount.value}\n"
+            f"**Payment Methods:** {self.payment.value}\n"
+            f"**Rate:** {self.rate.value}"
+        )
+
+        await self.message.edit(embed=embed)
+        await interaction.response.send_message("✅ GP listing updated!", ephemeral=True)
+
 
 
 # --- INTERACTION HANDLER ---
