@@ -428,7 +428,7 @@ class AccountListingModal(Modal, title="List an OSRS Account"):
                 except:
                     pass
 
-        await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True, delete_after=3)
+        await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
 
 
 class GPListingModal(Modal, title="List OSRS GP"):
