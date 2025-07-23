@@ -217,6 +217,24 @@ class ListingRemoveView(View):
         self.decision = False
         self.stop()
 
+class DirectDeleteView(View):
+    def __init__(self, lister, listing_message):
+        super().__init__(timeout=60)
+        self.lister = lister
+        self.listing_message = listing_message
+
+    @discord.ui.button(label="🗑️ Delete Listing", style=discord.ButtonStyle.danger)
+    async def delete_listing(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("🚫 You are not the owner of this listing.", ephemeral=True)
+            return
+
+        try:
+            await self.listing_message.delete()
+            await interaction.response.send_message("✅ Listing deleted.", ephemeral=True)
+        except discord.NotFound:
+            await interaction.response.send_message("⚠️ Could not delete the listing message (already gone?).", ephemeral=True)
+
 
 
 
@@ -498,11 +516,17 @@ class ListingView(View):
         await interaction.response.defer(ephemeral=True)
 
 
-    async def edit_listing(self, interaction: discord.Interaction):
+    async def delete_listing(self, interaction: discord.Interaction):
         if interaction.user.id != self.lister.id:
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
             return
-        await interaction.response.send_modal(EditListingModal(interaction.message, self.lister))
+
+        try:
+            await self.listing_message.delete()
+            await interaction.response.send_message("✅ Listing deleted.", ephemeral=True)
+        except discord.NotFound:
+            await interaction.response.send_message("⚠️ Couldn't delete the message (maybe already deleted).", ephemeral=True)
+
 
     async def delete_listing(self, interaction: discord.Interaction):
         if interaction.user.id != self.lister.id:
