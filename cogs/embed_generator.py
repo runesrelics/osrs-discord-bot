@@ -3,7 +3,6 @@ import discord
 import io
 import aiohttp
 import os
-import numpy as np
 
 class EmbedGenerator:
     def __init__(self):
@@ -17,35 +16,39 @@ class EmbedGenerator:
             'description': (0, 180, 255),# #00b4ff - Account description
             'image': (252, 0, 6)        # #fc0006 - Image location
         }
-        
-        # Define template paths
-        self.templates = {
-            "Main": ("TEMPLATE_MAIN.png", "TEMPLATE_MAIN_MAP.png"),
-            "PvP": ("TEMPLATE_PVP.png", "TEMPLATE_PVP_MAP.png"),
-            "HCIM": ("HCIM_TEMPLATE.png", "HCIM_TEMPLATE_MAP.png"),
-            "Iron": ("TEMPLATE_IRON.png", "TEMPLATE_IRON_MAP.png"),
-            "Special": ("TEMPLATE_SPECIAL.png", "TEMPLATE_SPECIAL_MAP.png")
-        }
 
     def find_color_zone(self, map_image, target_color):
         """Find the bounding box of a specific color zone"""
-        # Convert image to numpy array for faster processing
-        img_array = np.array(map_image)
-        
-        # Find pixels matching the target color
-        matches = np.all(img_array[:, :, :3] == target_color, axis=2)
-        
-        if not np.any(matches):
+        width, height = map_image.size
+        left = width
+        top = height
+        right = 0
+        bottom = 0
+        found = False
+
+        # Convert target_color to RGB if it's not already
+        if len(target_color) > 3:
+            target_color = target_color[:3]
+
+        # Scan the image for matching pixels
+        for y in range(height):
+            for x in range(width):
+                pixel = map_image.getpixel((x, y))
+                # Convert pixel to RGB if it's not already
+                if len(pixel) > 3:
+                    pixel = pixel[:3]
+                
+                if pixel == target_color:
+                    found = True
+                    left = min(left, x)
+                    top = min(top, y)
+                    right = max(right, x)
+                    bottom = max(bottom, y)
+
+        if not found:
             return None
-        
-        # Get bounding box coordinates
-        y_coords, x_coords = np.where(matches)
-        return (
-            int(x_coords.min()),  # left
-            int(y_coords.min()),  # top
-            int(x_coords.max()),  # right
-            int(y_coords.max())   # bottom
-        )
+
+        return (left, top, right, bottom)
 
     def create_circular_mask(self, size):
         """Create a circular mask for the avatar"""
@@ -89,8 +92,13 @@ class EmbedGenerator:
         """Generate a listing using the template and mapping system"""
         try:
             # Load both the clean template and its mapping
-            template_path = os.path.join(self.template_dir, self.templates[account_type][0])
-            map_path = os.path.join(self.template_dir, self.templates[account_type][1])
+            template_path = os.path.join(self.template_dir, f"TEMPLATE_{account_type.upper()}.png")
+            map_path = os.path.join(self.template_dir, f"TEMPLATE_{account_type.upper()}_MAP.png")
+            
+            if not os.path.exists(template_path):
+                raise FileNotFoundError(f"Template file not found: {template_path}")
+            if not os.path.exists(map_path):
+                raise FileNotFoundError(f"Map file not found: {map_path}")
             
             template = Image.open(template_path).convert('RGBA')
             map_image = Image.open(map_path).convert('RGB')
@@ -99,7 +107,7 @@ class EmbedGenerator:
             
             # Load font
             try:
-                font = ImageFont.truetype("arial.ttf", 24)  # Default size, will scale if needed
+                font = ImageFont.truetype("arial.ttf", 24)
             except:
                 font = ImageFont.load_default()
 
@@ -119,42 +127,23 @@ class EmbedGenerator:
             # 2. Username
             name_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['name'])
             if name_zone:
-                # Scale font to fit zone
-                zone_width = name_zone[2] - name_zone[0]
-                zone_height = name_zone[3] - name_zone[1]
-                font_size = 24
-                while font_size > 8:
-                    try:
-                        font = ImageFont.truetype("arial.ttf", font_size)
-                    except:
-                        font = ImageFont.load_default()
-                    if font.getlength(user.name) <= zone_width:
-                        break
-                    font_size -= 1
                 draw.text((name_zone[0], name_zone[1]), user.name, font=font, fill=(255, 255, 255))
 
             # 3. Account Value
             value_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['value'])
             if value_zone:
                 price_text = f"${price}USD/Crypto/GP"
-                zone_width = value_zone[2] - value_zone[0]
-                font_size = 24
-                while font_size > 8:
-                    try:
-                        font = ImageFont.truetype("arial.ttf", font_size)
-                    except:
-                        font = ImageFont.load_default()
-                    if font.getlength(price_text) <= zone_width:
-                        break
-                    font_size -= 1
                 draw.text((value_zone[0], value_zone[1]), price_text, font=font, fill=(255, 255, 255))
 
             # 4. Description
             desc_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['description'])
             if desc_zone:
-                zone_width = desc_zone[2] - desc_zone[0]
-                zone_height = desc_zone[3] - desc_zone[1]
-                wrapped_text = self.fit_text_to_box(description, font, zone_width, zone_height)
+                wrapped_text = self.fit_text_to_box(
+                    description,
+                    font,
+                    desc_zone[2] - desc_zone[0],
+                    desc_zone[3] - desc_zone[1]
+                )
                 draw.text((desc_zone[0], desc_zone[1]), wrapped_text, font=font, fill=(255, 255, 255))
 
             # 5. Showcase Image
