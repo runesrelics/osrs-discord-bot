@@ -120,6 +120,12 @@ class EmbedGenerator:
             template = Image.open(template_path).convert('RGBA')
             map_image = Image.open(map_path).convert('RGB')
             
+            # Scale both template and map to 200% (double size)
+            original_size = template.size
+            new_size = (original_size[0] * 2, original_size[1] * 2)
+            template = template.resize(new_size, Image.LANCZOS)
+            map_image = map_image.resize(new_size, Image.LANCZOS)
+            
             draw = ImageDraw.Draw(template)
             
             # Try to use Roboto font, fallback to system fonts if not available
