@@ -195,8 +195,13 @@ class EmbedGenerator:
             value_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['value'])
             if value_zone:
                 price_text = f"${price}"  # Just show the price, no extra text
-                draw.text((value_zone[0], value_zone[1]), price_text, 
-                         font=price_font, fill=(255, 255, 255))
+                
+                # Center the text in the zone
+                text_width, text_height = draw.textbbox((0, 0), price_text, font=price_font)[2:]
+                text_x = value_zone[0] + (value_zone[2] - value_zone[0] - text_width) // 2
+                text_y = value_zone[1] + (value_zone[3] - value_zone[1] - text_height) // 2
+                
+                draw.text((text_x, text_y), price_text, font=price_font, fill=(255, 255, 255))
 
             # 4. Description
             desc_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['description'])
@@ -219,16 +224,16 @@ class EmbedGenerator:
                 showcase_io = io.BytesIO(showcase_image_bytes)
                 showcase = Image.open(showcase_io).convert('RGBA')
                 
-                # Calculate dimensions to fill zone while maintaining aspect ratio
+                # Calculate dimensions to fit within the zone while maintaining aspect ratio
                 zone_width = image_zone[2] - image_zone[0]
                 zone_height = image_zone[3] - image_zone[1]
                 
-                # Calculate scaling to fill the zone as much as possible
+                # Calculate scaling to fit within the zone (not exceed bounds)
                 scale_x = zone_width / showcase.width
                 scale_y = zone_height / showcase.height
-                scale_factor = max(scale_x, scale_y)  # Use larger scale to fill more area
+                scale_factor = min(scale_x, scale_y)  # Use smaller scale to stay within bounds
                 
-                # Resize image to fill zone
+                # Resize image to fit zone
                 new_width = int(showcase.width * scale_factor)
                 new_height = int(showcase.height * scale_factor)
                 showcase = showcase.resize((new_width, new_height), Image.LANCZOS)
