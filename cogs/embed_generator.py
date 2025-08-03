@@ -166,9 +166,9 @@ class EmbedGenerator:
             template = Image.open(template_path).convert('RGBA')
             map_image = Image.open(map_path).convert('RGB')
             
-            # Scale both template and map to 500% (5x size) for better Discord visibility
+            # Scale both template and map to 200% (2x size) for better Discord visibility while keeping file size reasonable
             original_size = template.size
-            new_size = (original_size[0] * 5, original_size[1] * 5)
+            new_size = (original_size[0] * 2, original_size[1] * 2)
             template = template.resize(new_size, Image.LANCZOS)
             map_image = map_image.resize(new_size, Image.LANCZOS)
             
@@ -282,9 +282,9 @@ class EmbedGenerator:
                 
                 draw.text((text_x, text_y), vouch_text, font=vouch_font, fill=(255, 255, 255))
 
-            # Convert to bytes for Discord upload
+            # Convert to bytes for Discord upload with optimized compression
             final_buffer = io.BytesIO()
-            template.save(final_buffer, format='PNG')
+            template.save(final_buffer, format='PNG', optimize=True, compress_level=9)
             final_buffer.seek(0)
             
             return final_buffer
