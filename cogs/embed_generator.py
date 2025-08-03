@@ -4,6 +4,7 @@ import io
 import aiohttp
 import os
 import unicodedata
+import sqlite3
 from config.layout import TEXT_CONFIG, PFP_CONFIG  # Removed SHOWCASE_CONFIG from import
 
 class EmbedGenerator:
@@ -17,11 +18,15 @@ class EmbedGenerator:
             'name': (68, 255, 37),      # #44ff25 - Discord display name
             'value': (255, 232, 37),    # #ffe825 - Account value
             'description': (0, 180, 255),# #00b4ff - Account description
-            'image': (252, 0, 6)        # #fc0006 - Image location
+            'image': (252, 0, 6),       # #fc0006 - Image location
+            'vouches': (121, 119, 121)  # #797779 - User vouches
         }
 
         # Create fonts directory if it doesn't exist
         os.makedirs(os.path.dirname(self.font_path), exist_ok=True)
+        
+        # Database path for vouches
+        self.db_path = "/app/data/vouches.db"
 
     def normalize_text(self, text):
         """Handle special characters in text"""
@@ -82,6 +87,22 @@ class EmbedGenerator:
                     return io.BytesIO(await resp.read())
         return None
 
+    def get_user_vouches(self, user_id):
+        """Get the total number of vouches for a user"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get total vouches for the user
+            cursor.execute("SELECT COUNT(*) FROM vouches WHERE user_id = ?", (user_id,))
+            vouch_count = cursor.fetchone()[0]
+            
+            conn.close()
+            return vouch_count
+        except Exception as e:
+            print(f"Error getting vouches for user {user_id}: {e}")
+            return 0
+
     def fit_text_to_box(self, text, font, max_width, max_height):
         """Fit and wrap text to a given box size"""
         words = text.split()
@@ -120,9 +141,9 @@ class EmbedGenerator:
             template = Image.open(template_path).convert('RGBA')
             map_image = Image.open(map_path).convert('RGB')
             
-            # Scale both template and map to 300% (triple size)
+            # Scale both template and map to 500% (5x size) for better Discord visibility
             original_size = template.size
-            new_size = (original_size[0] * 3, original_size[1] * 3)
+            new_size = (original_size[0] * 5, original_size[1] * 5)
             template = template.resize(new_size, Image.LANCZOS)
             map_image = map_image.resize(new_size, Image.LANCZOS)
             
@@ -213,6 +234,29 @@ class EmbedGenerator:
                 
                 template.paste(showcase, (x_offset, y_offset))
 
+            # 6. User Vouches
+            vouch_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['vouches'])
+            if vouch_zone:
+                vouch_count = self.get_user_vouches(user.id)
+                vouch_text = f"Vouches: {vouch_count}"
+                
+                # Use a smaller font for vouches
+                vouch_font_size = 36  # Smaller than other text
+                try:
+                    vouch_font = ImageFont.truetype(self.font_path, vouch_font_size)
+                except:
+                    try:
+                        vouch_font = ImageFont.truetype("arial", vouch_font_size)
+                    except:
+                        vouch_font = ImageFont.load_default()
+                
+                # Center the text in the zone
+                text_width, text_height = draw.textbbox((0, 0), vouch_text, font=vouch_font)[2:]
+                text_x = vouch_zone[0] + (vouch_zone[2] - vouch_zone[0] - text_width) // 2
+                text_y = vouch_zone[1] + (vouch_zone[3] - vouch_zone[1] - text_height) // 2
+                
+                draw.text((text_x, text_y), vouch_text, font=vouch_font, fill=(255, 255, 255))
+
             # Convert to bytes for Discord upload
             final_buffer = io.BytesIO()
             template.save(final_buffer, format='PNG')
@@ -225,5 +269,7 @@ class EmbedGenerator:
             raise
 
     async def send_listing(self, channel, file):
-        """Send the listing to the channel"""
-        return await channel.send(file=discord.File(file, filename="listing.png"))
+        """Send the listing to the channel as an embed for better visibility"""
+        embed = discord.Embed(color=discord.Color.gold())
+        embed.set_image(url="attachment://listing.png")
+        return await channel.send(file=discord.File(file, filename="listing.png"), embed=embed)
