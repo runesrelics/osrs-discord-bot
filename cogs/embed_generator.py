@@ -3,6 +3,7 @@ import discord
 import io
 import aiohttp
 import os
+from config.layout import TEXT_CONFIG, PFP_CONFIG, SHOWCASE_CONFIG
 
 class EmbedGenerator:
     def __init__(self):
@@ -105,11 +106,18 @@ class EmbedGenerator:
             
             draw = ImageDraw.Draw(template)
             
-            # Load font
+            # Load fonts with larger sizes
             try:
-                font = ImageFont.truetype("arial.ttf", 24)
+                username_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['username']['font_size'])
+                price_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['price']['font_size'])
+                desc_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['description']['font_size'])
+                type_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['account_type']['font_size'])
             except:
-                font = ImageFont.load_default()
+                print("Font loading failed, using default font")
+                username_font = ImageFont.load_default()
+                price_font = ImageFont.load_default()
+                desc_font = ImageFont.load_default()
+                type_font = ImageFont.load_default()
 
             # Process each zone based on the mapping colors
             
@@ -124,27 +132,33 @@ class EmbedGenerator:
                     mask = self.create_circular_mask(size)
                     template.paste(avatar, (pfp_zone[0], pfp_zone[1]), mask)
 
-            # 2. Username
+            # 2. Username (using server nickname)
             name_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['name'])
             if name_zone:
-                draw.text((name_zone[0], name_zone[1]), user.name, font=font, fill=(255, 255, 255))
+                # Use display_name instead of name
+                display_name = user.display_name
+                draw.text((name_zone[0], name_zone[1]), display_name, 
+                         font=username_font, fill=(255, 255, 255))
 
             # 3. Account Value
             value_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['value'])
             if value_zone:
                 price_text = f"${price}USD/Crypto/GP"
-                draw.text((value_zone[0], value_zone[1]), price_text, font=font, fill=(255, 255, 255))
+                draw.text((value_zone[0], value_zone[1]), price_text, 
+                         font=price_font, fill=(255, 255, 255))
 
             # 4. Description
             desc_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['description'])
             if desc_zone:
                 wrapped_text = self.fit_text_to_box(
                     description,
-                    font,
+                    desc_font,
                     desc_zone[2] - desc_zone[0],
                     desc_zone[3] - desc_zone[1]
                 )
-                draw.text((desc_zone[0], desc_zone[1]), wrapped_text, font=font, fill=(255, 255, 255))
+                draw.text((desc_zone[0], desc_zone[1]), wrapped_text, 
+                         font=desc_font, fill=(255, 255, 255),
+                         spacing=TEXT_CONFIG['description']['line_spacing'])
 
             # 5. Showcase Image
             image_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['image'])
