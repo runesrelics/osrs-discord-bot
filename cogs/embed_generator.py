@@ -120,9 +120,9 @@ class EmbedGenerator:
             template = Image.open(template_path).convert('RGBA')
             map_image = Image.open(map_path).convert('RGB')
             
-            # Scale both template and map to 200% (double size)
+            # Scale both template and map to 300% (triple size)
             original_size = template.size
-            new_size = (original_size[0] * 2, original_size[1] * 2)
+            new_size = (original_size[0] * 3, original_size[1] * 3)
             template = template.resize(new_size, Image.LANCZOS)
             map_image = map_image.resize(new_size, Image.LANCZOS)
             
