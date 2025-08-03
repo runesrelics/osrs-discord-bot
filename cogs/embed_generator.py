@@ -3,11 +3,13 @@ import discord
 import io
 import aiohttp
 import os
+import unicodedata
 from config.layout import TEXT_CONFIG, PFP_CONFIG, SHOWCASE_CONFIG
 
 class EmbedGenerator:
     def __init__(self):
         self.template_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates"))
+        self.font_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "fonts", "Roboto-Bold.ttf"))
         
         # Color mappings (RGB format)
         self.COLOR_MAPPINGS = {
@@ -17,6 +19,14 @@ class EmbedGenerator:
             'description': (0, 180, 255),# #00b4ff - Account description
             'image': (252, 0, 6)        # #fc0006 - Image location
         }
+
+    def normalize_text(self, text):
+        """Handle special characters in text"""
+        # Convert special characters to their closest ASCII representation
+        normalized = unicodedata.normalize('NFKD', text)
+        # Remove any remaining non-ASCII characters
+        ascii_text = normalized.encode('ascii', 'ignore').decode()
+        return ascii_text if ascii_text.strip() else text  # Use original if conversion results in empty string
 
     def find_color_zone(self, map_image, target_color):
         """Find the bounding box of a specific color zone"""
@@ -108,12 +118,16 @@ class EmbedGenerator:
             
             # Load fonts with larger sizes
             try:
-                username_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['username']['font_size'])
-                price_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['price']['font_size'])
-                desc_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['description']['font_size'])
-                type_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['account_type']['font_size'])
-            except:
-                print("Font loading failed, using default font")
+                if os.path.exists(self.font_path):
+                    username_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['username']['font_size'])
+                    price_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['price']['font_size'])
+                    desc_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['description']['font_size'])
+                    type_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['account_type']['font_size'])
+                else:
+                    print(f"Font not found at: {self.font_path}")
+                    raise FileNotFoundError("Font file not found")
+            except Exception as e:
+                print(f"Font loading error: {str(e)}")
                 username_font = ImageFont.load_default()
                 price_font = ImageFont.load_default()
                 desc_font = ImageFont.load_default()
@@ -132,11 +146,12 @@ class EmbedGenerator:
                     mask = self.create_circular_mask(size)
                     template.paste(avatar, (pfp_zone[0], pfp_zone[1]), mask)
 
-            # 2. Username (using server nickname)
+            # 2. Username (using server nickname with special character handling)
             name_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['name'])
             if name_zone:
-                # Use display_name instead of name
+                # Get display name and handle special characters
                 display_name = user.display_name
+                display_name = self.normalize_text(display_name)
                 draw.text((name_zone[0], name_zone[1]), display_name, 
                          font=username_font, fill=(255, 255, 255))
 
@@ -150,6 +165,8 @@ class EmbedGenerator:
             # 4. Description
             desc_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['description'])
             if desc_zone:
+                # Handle special characters in description
+                description = self.normalize_text(description)
                 wrapped_text = self.fit_text_to_box(
                     description,
                     desc_font,
