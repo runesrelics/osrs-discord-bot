@@ -40,7 +40,7 @@ class EmbedGenerator:
             return ascii_text if ascii_text.strip() else text
 
     def find_color_zone(self, map_image, target_color):
-        """Find the bounding box of a specific color zone"""
+        """Find the bounding box of a specific color zone - optimized for large images"""
         width, height = map_image.size
         left = width
         top = height
@@ -52,25 +52,50 @@ class EmbedGenerator:
         if len(target_color) > 3:
             target_color = target_color[:3]
 
-        # Scan the image for matching pixels
-        for y in range(height):
-            for x in range(width):
-                pixel = map_image.getpixel((x, y))
-                # Convert pixel to RGB if it's not already
-                if len(pixel) > 3:
-                    pixel = pixel[:3]
+        # Use numpy for much faster pixel processing if available
+        try:
+            import numpy as np
+            # Convert image to numpy array for faster processing
+            img_array = np.array(map_image)
+            
+            # Find all pixels matching the target color
+            mask = np.all(img_array == target_color, axis=2)
+            
+            if np.any(mask):
+                # Get coordinates of matching pixels
+                coords = np.where(mask)
+                y_coords, x_coords = coords
                 
-                if pixel == target_color:
-                    found = True
-                    left = min(left, x)
-                    top = min(top, y)
-                    right = max(right, x)
-                    bottom = max(bottom, y)
+                left = np.min(x_coords)
+                top = np.min(y_coords)
+                right = np.max(x_coords)
+                bottom = np.max(y_coords)
+                found = True
+                
+            return (left, top, right, bottom) if found else None
+            
+        except ImportError:
+            # Fallback to optimized manual scanning
+            # Sample every 4th pixel to speed up processing
+            step = 4
+            for y in range(0, height, step):
+                for x in range(0, width, step):
+                    pixel = map_image.getpixel((x, y))
+                    # Convert pixel to RGB if it's not already
+                    if len(pixel) > 3:
+                        pixel = pixel[:3]
+                    
+                    if pixel == target_color:
+                        found = True
+                        left = min(left, x)
+                        top = min(top, y)
+                        right = max(right, x)
+                        bottom = max(bottom, y)
 
-        if not found:
-            return None
+            if not found:
+                return None
 
-        return (left, top, right, bottom)
+            return (left, top, right, bottom)
 
     def create_circular_mask(self, size):
         """Create a circular mask for the avatar"""
