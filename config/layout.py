@@ -2,9 +2,9 @@
 
 # Font sizes (significantly increased)
 FONT_SIZES = {
-    'username': 72,     # Increased from 48
-    'price': 64,       # Increased from 42
-    'description': 52  # Increased from 36
+    'username': 72,     # Very large for username
+    'price': 64,       # Large for price
+    'description': 52  # Medium for description
 }
 
 # Profile picture settings
@@ -31,11 +31,11 @@ TEXT_CONFIG = {
         'font_size': FONT_SIZES['description'],
         'color': (255, 255, 255),  # RGB color (white)
         'max_width': 700,       # Maximum width for text wrapping
-        'line_spacing': 15,      # Increased from 10
+        'line_spacing': 15,      # Increased line spacing
     },
     'account_type': {
         'position': (550, 1150),  # Position of account type label
-        'font_size': 52,          # Increased from 36
+        'font_size': 52,          # Large font for account type
         'color': (0, 255, 255),   # RGB color (cyan)
         'right_padding': 30,      # Padding from right edge
     }
