@@ -122,18 +122,28 @@ class EmbedGenerator:
             
             draw = ImageDraw.Draw(template)
             
-            # Try to use default system font if Roboto isn't available
+            # Try to use Roboto font, fallback to system fonts if not available
             try:
-                username_font = ImageFont.truetype("arial", TEXT_CONFIG['username']['font_size'])
-                price_font = ImageFont.truetype("arial", TEXT_CONFIG['price']['font_size'])
-                desc_font = ImageFont.truetype("arial", TEXT_CONFIG['description']['font_size'])
-                type_font = ImageFont.truetype("arial", TEXT_CONFIG['account_type']['font_size'])
+                username_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['username']['font_size'])
+                price_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['price']['font_size'])
+                desc_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['description']['font_size'])
+                type_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['account_type']['font_size'])
+                print(f"✅ Successfully loaded Roboto font from: {self.font_path}")
             except Exception as e:
-                print(f"Font loading error: {str(e)}, using default font")
-                username_font = ImageFont.load_default()
-                price_font = ImageFont.load_default()
-                desc_font = ImageFont.load_default()
-                type_font = ImageFont.load_default()
+                print(f"❌ Roboto font loading failed: {str(e)}")
+                print(f"Font path attempted: {self.font_path}")
+                print("Falling back to system fonts...")
+                try:
+                    username_font = ImageFont.truetype("arial", TEXT_CONFIG['username']['font_size'])
+                    price_font = ImageFont.truetype("arial", TEXT_CONFIG['price']['font_size'])
+                    desc_font = ImageFont.truetype("arial", TEXT_CONFIG['description']['font_size'])
+                    type_font = ImageFont.truetype("arial", TEXT_CONFIG['account_type']['font_size'])
+                except Exception as e2:
+                    print(f"System font loading also failed: {str(e2)}, using default font")
+                    username_font = ImageFont.load_default()
+                    price_font = ImageFont.load_default()
+                    desc_font = ImageFont.load_default()
+                    type_font = ImageFont.load_default()
 
             # Process each zone based on the mapping colors
             
