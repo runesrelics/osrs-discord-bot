@@ -3,12 +3,11 @@ import discord
 import io
 import aiohttp
 import os
-import math
+from config.layout import PFP_CONFIG, TEXT_CONFIG, SHOWCASE_CONFIG
 
 class EmbedGenerator:
     def __init__(self):
         self.template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
-        self.font_size_normal = 24
         
         # Define template paths
         self.templates = {
@@ -65,65 +64,84 @@ class EmbedGenerator:
             template = Image.open(template_path).convert('RGBA')
             draw = ImageDraw.Draw(template)
 
-            try:
-                font = ImageFont.truetype("arial.ttf", self.font_size_normal)
-            except:
-                font = ImageFont.load_default()
+            # Load fonts
+            username_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['username']['font_size'])
+            price_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['price']['font_size'])
+            desc_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['description']['font_size'])
+            type_font = ImageFont.truetype("arial.ttf", TEXT_CONFIG['account_type']['font_size'])
 
-            # Add circular avatar in pfp area
+            # Add circular avatar
             avatar_bytes = await self.download_avatar(user.display_avatar.url)
             if avatar_bytes:
                 avatar = Image.open(avatar_bytes).convert('RGBA')
-                # Create circular avatar
-                size = (70, 70)  # Size for pfp circle
-                avatar = avatar.resize(size)
-                mask = self.create_circular_mask(size)
-                # Position for pfp (adjusted to match example)
-                avatar_pos = (25, 25)
-                template.paste(avatar, avatar_pos, mask)
+                avatar = avatar.resize(PFP_CONFIG['size'])
+                mask = self.create_circular_mask(PFP_CONFIG['size'])
+                template.paste(avatar, PFP_CONFIG['position'], mask)
 
-            # Add username (just the username, no "Account Listing by")
-            username_pos = (110, 45)  # Adjusted to align with pfp
-            draw.text(username_pos, user.name, font=font, fill=(255, 255, 255))
+            # Add username
+            draw.text(
+                TEXT_CONFIG['username']['position'],
+                user.name,
+                font=username_font,
+                fill=TEXT_CONFIG['username']['color']
+            )
 
-            # Add price/payment info in top right
-            # Adjusted to match example's positioning
+            # Add price/payment info
             price_text = f"${price}USD/Crypto/GP"
-            text_width = font.getlength(price_text)
-            price_pos = (template.width - text_width - 30, 45)  # Right-aligned with padding
-            draw.text(price_pos, price_text, font=font, fill=(255, 255, 255))
+            text_width = price_font.getlength(price_text)
+            price_pos = (
+                template.width - text_width - TEXT_CONFIG['price']['right_padding'],
+                TEXT_CONFIG['price']['position'][1]
+            )
+            draw.text(price_pos, price_text, font=price_font, fill=TEXT_CONFIG['price']['color'])
 
-            # Add description in the center box
-            # Adjusted to match example's text area
-            description_box_width = template.width - 100  # Padding on both sides
-            description_wrapped = self.wrap_text(description, font, description_box_width)
-            description_pos = (50, 200)  # Adjusted to match example
-            draw.text(description_pos, description_wrapped, font=font, fill=(255, 255, 255))
+            # Add description
+            description_wrapped = self.wrap_text(
+                description,
+                desc_font,
+                TEXT_CONFIG['description']['max_width']
+            )
+            draw.text(
+                TEXT_CONFIG['description']['position'],
+                description_wrapped,
+                font=desc_font,
+                fill=TEXT_CONFIG['description']['color'],
+                spacing=TEXT_CONFIG['description']['line_spacing']
+            )
 
-            # Add showcase image in bottom box
+            # Add showcase image
             if showcase_image_bytes:
                 showcase_io = io.BytesIO(showcase_image_bytes)
                 showcase = Image.open(showcase_io).convert('RGBA')
                 
-                # Calculate dimensions to fit the bottom box
-                showcase_box_height = 300
-                showcase_box_width = template.width - 100
-                
                 # Resize image maintaining aspect ratio
-                showcase.thumbnail((showcase_box_width, showcase_box_height))
+                showcase.thumbnail((
+                    SHOWCASE_CONFIG['max_width'],
+                    SHOWCASE_CONFIG['max_height']
+                ))
                 
-                # Center the image in the bottom box
-                x_offset = (showcase_box_width - showcase.width) // 2 + 50
-                y_offset = template.height - showcase_box_height - 50
+                # Center the image
+                x_offset = SHOWCASE_CONFIG['position'][0] + (
+                    SHOWCASE_CONFIG['max_width'] - showcase.width
+                ) // 2
+                y_offset = SHOWCASE_CONFIG['position'][1]
                 
                 template.paste(showcase, (x_offset, y_offset))
 
-            # Add account type label at bottom (if needed)
+            # Add account type label
             if account_type.upper() != "SPECIAL":
                 account_type_text = account_type.upper()
-                text_width = font.getlength(account_type_text)
-                type_pos = (template.width - text_width - 30, template.height - 40)
-                draw.text(type_pos, account_type_text, font=font, fill=(0, 255, 255))  # Cyan color
+                text_width = type_font.getlength(account_type_text)
+                type_pos = (
+                    template.width - text_width - TEXT_CONFIG['account_type']['right_padding'],
+                    TEXT_CONFIG['account_type']['position'][1]
+                )
+                draw.text(
+                    type_pos,
+                    account_type_text,
+                    font=type_font,
+                    fill=TEXT_CONFIG['account_type']['color']
+                )
 
             # Convert to bytes for Discord upload
             final_buffer = io.BytesIO()
