@@ -4,7 +4,7 @@ import io
 import aiohttp
 import os
 import unicodedata
-from config.layout import TEXT_CONFIG, PFP_CONFIG, SHOWCASE_CONFIG
+from config.layout import TEXT_CONFIG, PFP_CONFIG  # Removed SHOWCASE_CONFIG from import
 
 class EmbedGenerator:
     def __init__(self):
@@ -20,13 +20,19 @@ class EmbedGenerator:
             'image': (252, 0, 6)        # #fc0006 - Image location
         }
 
+        # Create fonts directory if it doesn't exist
+        os.makedirs(os.path.dirname(self.font_path), exist_ok=True)
+
     def normalize_text(self, text):
         """Handle special characters in text"""
-        # Convert special characters to their closest ASCII representation
-        normalized = unicodedata.normalize('NFKD', text)
-        # Remove any remaining non-ASCII characters
-        ascii_text = normalized.encode('ascii', 'ignore').decode()
-        return ascii_text if ascii_text.strip() else text  # Use original if conversion results in empty string
+        try:
+            # Try to keep special characters if possible
+            return text.encode('utf-8').decode('utf-8')
+        except UnicodeError:
+            # Fall back to ASCII if needed
+            normalized = unicodedata.normalize('NFKD', text)
+            ascii_text = normalized.encode('ascii', 'ignore').decode()
+            return ascii_text if ascii_text.strip() else text
 
     def find_color_zone(self, map_image, target_color):
         """Find the bounding box of a specific color zone"""
@@ -116,18 +122,14 @@ class EmbedGenerator:
             
             draw = ImageDraw.Draw(template)
             
-            # Load fonts with larger sizes
+            # Try to use default system font if Roboto isn't available
             try:
-                if os.path.exists(self.font_path):
-                    username_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['username']['font_size'])
-                    price_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['price']['font_size'])
-                    desc_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['description']['font_size'])
-                    type_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['account_type']['font_size'])
-                else:
-                    print(f"Font not found at: {self.font_path}")
-                    raise FileNotFoundError("Font file not found")
+                username_font = ImageFont.truetype("arial", TEXT_CONFIG['username']['font_size'])
+                price_font = ImageFont.truetype("arial", TEXT_CONFIG['price']['font_size'])
+                desc_font = ImageFont.truetype("arial", TEXT_CONFIG['description']['font_size'])
+                type_font = ImageFont.truetype("arial", TEXT_CONFIG['account_type']['font_size'])
             except Exception as e:
-                print(f"Font loading error: {str(e)}")
+                print(f"Font loading error: {str(e)}, using default font")
                 username_font = ImageFont.load_default()
                 price_font = ImageFont.load_default()
                 desc_font = ImageFont.load_default()
