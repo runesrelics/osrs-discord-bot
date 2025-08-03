@@ -134,8 +134,13 @@ class EmbedGenerator:
         """Generate a listing using the template and mapping system"""
         try:
             # Load both the clean template and its mapping
-            template_path = os.path.join(self.template_dir, f"TEMPLATE_{account_type.upper()}.png")
-            map_path = os.path.join(self.template_dir, f"TEMPLATE_{account_type.upper()}_MAP.png")
+            # Handle special case for HCIM template naming
+            if account_type.upper() == "HCIM":
+                template_path = os.path.join(self.template_dir, "HCIM_TEMPLATE.png")
+                map_path = os.path.join(self.template_dir, "HCIM_TEMPLATE_MAP.png")
+            else:
+                template_path = os.path.join(self.template_dir, f"TEMPLATE_{account_type.upper()}.png")
+                map_path = os.path.join(self.template_dir, f"TEMPLATE_{account_type.upper()}_MAP.png")
             
             if not os.path.exists(template_path):
                 raise FileNotFoundError(f"Template file not found: {template_path}")
