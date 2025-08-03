@@ -6,7 +6,6 @@ import os
 
 class EmbedGenerator:
     def __init__(self):
-        # Update the template directory path to be relative to the root
         self.template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
         self.font_size_title = 48
         self.font_size_normal = 36
@@ -53,60 +52,53 @@ class EmbedGenerator:
         return "\n".join(lines)
 
     async def generate_listing_image(self, account_type, user, description, price, payment_methods, showcase_image_bytes):
-        """Generate a custom listing image using the template"""
+        """Generate a listing using the pre-made template"""
         try:
-            # Load template with absolute path
+            # Load the appropriate template
             template_path = os.path.join(self.template_dir, self.templates[account_type])
-            print(f"Attempting to load template from: {template_path}")  # Debug print
-            
-            if not os.path.exists(template_path):
-                print(f"Template file not found at: {template_path}")  # Debug print
-                raise FileNotFoundError(f"Template file not found: {template_path}")
-                
             template = Image.open(template_path).convert('RGBA')
             draw = ImageDraw.Draw(template)
 
-            # Load fonts (you'll need to provide appropriate font files)
             try:
                 font_title = ImageFont.truetype("arial.ttf", self.font_size_title)
                 font_normal = ImageFont.truetype("arial.ttf", self.font_size_normal)
                 font_small = ImageFont.truetype("arial.ttf", self.font_size_small)
             except:
-                # Fallback to default font if custom font not available
                 font_title = ImageFont.load_default()
                 font_normal = ImageFont.load_default()
                 font_small = ImageFont.load_default()
 
-            # Add user avatar
+            # Add user avatar to top left
             avatar_bytes = await self.download_avatar(user.display_avatar.url)
             if avatar_bytes:
                 avatar = Image.open(avatar_bytes).convert('RGBA')
-                avatar = avatar.resize((100, 100))  # Size for avatar
-                template.paste(avatar, (50, 50), avatar)  # Position for avatar
+                avatar = avatar.resize((80, 80))
+                template.paste(avatar, (50, 50), avatar)
 
-            # Add username
-            draw.text((170, 75), user.display_name, font=font_normal, fill=(255, 255, 255))
+            # Add username next to avatar
+            draw.text((140, 65), f"{account_type} Account Listing by {user.display_name}", 
+                     font=font_normal, fill=(255, 255, 255))
 
             # Add price and payment info in top right
-            price_text = f"Price: {price}"
-            payment_text = f"Payment: {payment_methods}"
-            draw.text((template.width - 400, 50), price_text, font=font_normal, fill=(255, 255, 255))
-            draw.text((template.width - 400, 100), payment_text, font=font_small, fill=(255, 255, 255))
+            draw.text((template.width - 400, 50), f"Price: {price}", 
+                     font=font_normal, fill=(255, 255, 255))
+            draw.text((template.width - 400, 100), f"Payment: {payment_methods}", 
+                     font=font_small, fill=(255, 255, 255))
 
-            # Add description in center
+            # Add description in the center area
             description_wrapped = self.wrap_text(description, font_normal, template.width - 200)
             draw.text((100, 200), description_wrapped, font=font_normal, fill=(255, 255, 255))
 
-            # Add showcase image at bottom if provided
+            # Add showcase image at the bottom
             if showcase_image_bytes:
-                # Convert bytes to PIL Image
                 showcase_io = io.BytesIO(showcase_image_bytes)
                 showcase = Image.open(showcase_io).convert('RGBA')
                 
                 # Calculate position to center the showcase image in the bottom area
                 showcase_height = 300  # Adjust based on your template
-                showcase = showcase.resize((template.width - 100, showcase_height), Image.Resampling.LANCZOS)
-                template.paste(showcase, (50, template.height - showcase_height - 50), showcase)
+                showcase_width = template.width - 100
+                showcase = showcase.resize((showcase_width, showcase_height), Image.Resampling.LANCZOS)
+                template.paste(showcase, (50, template.height - showcase_height - 50))
 
             # Convert to bytes for Discord upload
             final_buffer = io.BytesIO()
@@ -116,12 +108,9 @@ class EmbedGenerator:
             return final_buffer
             
         except Exception as e:
-            print(f"Error generating listing image: {str(e)}")  # Debug print
+            print(f"Error generating listing image: {str(e)}")
             raise
 
-    def create_listing_embed(self, account_type, user, file):
-        """Create Discord embed with the generated image"""
-        embed = discord.Embed(color=discord.Color.gold())
-        embed.set_author(name=f"{account_type} Account Listing by {user.display_name}", icon_url=user.display_avatar.url)
-        embed.set_image(url="attachment://listing.png")
-        return embed
+    async def send_listing(self, channel, file):
+        """Send the listing to the channel"""
+        return await channel.send(file=discord.File(file, filename="listing.png"))
