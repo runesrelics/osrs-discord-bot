@@ -14,7 +14,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 INITIAL_EXTENSIONS = [
     'cogs.vouch',
     'cogs.listings',
-    'cogs.tickets'
+    'cogs.tickets',
+    'cogs.test_layout'
 ]
 
 @bot.event
