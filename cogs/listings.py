@@ -4,6 +4,93 @@ from discord.ui import View, Button, Modal, TextInput
 import asyncio
 from .embed_generator import EmbedGenerator
 
+class AccountListingModal(Modal):
+    def __init__(self, account_type: str, channel_type: str, channels: dict):
+        super().__init__(title=f"List an OSRS {account_type} Account")
+        self.account_type = account_type
+        self.channel_type = channel_type
+        self.CHANNELS = channels
+        
+        self.description = TextInput(
+            label="Account Description",
+            style=discord.TextStyle.paragraph,
+            placeholder="Describe your account's stats, quests, achievements, etc.",
+            max_length=500
+        )
+        
+        self.price = TextInput(
+            label="Price / Value",
+            placeholder="Enter your asking price",
+            max_length=50
+        )
+        
+        self.payment = TextInput(
+            label="Payment Methods",
+            placeholder="List accepted payment methods",
+            max_length=100
+        )
+
+        self.add_item(self.description)
+        self.add_item(self.price)
+        self.add_item(self.payment)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        
+        trusted = any("trusted" in role.name.lower() for role in interaction.user.roles)
+        target_channels = self.CHANNELS["trusted"] if trusted else self.CHANNELS["public"]
+        target_channel_id = target_channels[self.channel_type]
+        listing_channel = interaction.guild.get_channel(target_channel_id)
+
+        await interaction.followup.send(
+            "Please upload ONE showcase image for your listing (30 seconds).",
+            ephemeral=True
+        )
+
+        def check(m):
+            return (m.author == interaction.user and 
+                   m.channel == interaction.channel and 
+                   m.attachments)
+
+        try:
+            msg = await interaction.client.wait_for("message", timeout=30.0, check=check)
+            if msg.attachments:
+                showcase_image = await msg.attachments[0].read()
+                
+                # Generate the custom listing image
+                embed_generator = EmbedGenerator()
+                listing_image = await embed_generator.generate_listing_image(
+                    self.account_type,
+                    interaction.user,
+                    self.description.value,
+                    self.price.value,
+                    self.payment.value,
+                    showcase_image
+                )
+
+                # Send the listing as a plain image with buttons
+                file = discord.File(listing_image, filename="listing.png")
+                listing_msg = await listing_channel.send(file=file)
+                
+                # Add the listing controls
+                view = ListingView(lister=interaction.user, listing_message=listing_msg)
+                await listing_msg.edit(view=view)
+                
+                await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
+                
+                # Clean up the showcase image message
+                try:
+                    await msg.delete()
+                except:
+                    pass
+                    
+            else:
+                await interaction.followup.send("❌ No image was provided. Please try listing again.", ephemeral=True)
+                
+        except asyncio.TimeoutError:
+            await interaction.followup.send("❌ No image was provided in time. Please try listing again.", ephemeral=True)
+            return
+
 class ListingCog(commands.Cog, name="Listings"):
     """Commands for managing listings"""
     
@@ -162,8 +249,77 @@ class ListingCog(commands.Cog, name="Listings"):
         except Exception as e:
             await interaction.followup.send(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
 
+class ListingView(View):
+    def __init__(self, lister: discord.User, listing_message: discord.Message):
+        super().__init__(timeout=None)
+        self.lister = lister
+        self.listing_message = listing_message
+
+        buy_button = Button(
+            label="TRADE",
+            style=discord.ButtonStyle.success,
+            custom_id=f"buy_{lister.id}"
+        )
+        self.add_item(buy_button)
+
+        edit_button = Button(
+            emoji="✏️",
+            style=discord.ButtonStyle.secondary,
+            custom_id="edit_listing"
+        )
+        edit_button.callback = self.edit_listing
+        self.add_item(edit_button)
+
+        delete_button = Button(
+            emoji="❌",
+            style=discord.ButtonStyle.secondary,
+            custom_id="delete_listing"
+        )
+        delete_button.callback = self.delete_listing
+        self.add_item(delete_button)
+
+    async def edit_listing(self, interaction: discord.Interaction):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("You can't use this button.", ephemeral=True)
+            return
+            
+        embed = self.listing_message.embeds[0]
+        await interaction.response.send_message("❌ Editing listings is temporarily disabled.", ephemeral=True)
+
+    async def delete_listing(self, interaction: discord.Interaction):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("You can't use this button.", ephemeral=True)
+            return
+
+        try:
+            await self.listing_message.delete()
+            await interaction.response.send_message("✅ Listing deleted.", ephemeral=True)
+        except:
+            await interaction.response.send_message("❌ Failed to delete listing.", ephemeral=True)
+
+class GPTypeSelectView(discord.ui.View):
+    def __init__(self, user):
+        super().__init__(timeout=60)
+        self.user = user
+
+    @discord.ui.button(label="BUYING", style=discord.ButtonStyle.success)
+    async def buying(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            await interaction.response.send_message("Only you can select this.", ephemeral=True)
+            return
+        await interaction.response.send_message("GP listings coming soon!", ephemeral=True)
+        self.stop()
+
+    @discord.ui.button(label="SELLING", style=discord.ButtonStyle.danger)
+    async def selling(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            await interaction.response.send_message("Only you can select this.", ephemeral=True)
+            return
+        await interaction.response.send_message("GP listings coming soon!", ephemeral=True)
+        self.stop()
+
 async def setup(bot):
     print("Adding ListingCog...")  # Debug print
     cog = ListingCog(bot)
-    await bot.add_cog(cog)  # Make this an await call
+    await bot.add_cog(cog)
     print("ListingCog added successfully")  # Debug print
