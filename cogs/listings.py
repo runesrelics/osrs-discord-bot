@@ -56,12 +56,114 @@ class ListingCog(commands.Cog, name="Listings"):
         await ctx.send("Choose what you want to list:", view=view)
         await ctx.send("✅ Listing buttons have been set up!")
 
-    # Rest of your ListingCog code...
-    # (keeping the rest of the code the same)
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        if interaction.type == discord.InteractionType.application_command:
+            return
 
-def setup(bot):
+        if interaction.type == discord.InteractionType.component:
+            custom_id = interaction.data.get("custom_id", "")
+
+            if custom_id == "list_account":
+                view = self.AccountTypeSelectView(self.CHANNELS)
+                await interaction.response.send_message(
+                    "Select the type of account you want to list:",
+                    view=view,
+                    ephemeral=True
+                )
+                return
+
+            elif custom_id == "list_gp":
+                view = GPTypeSelectView(interaction.user)
+                await interaction.response.send_message(
+                    "Please select if you are **BUYING** or **SELLING** OSRS GP:",
+                    view=view,
+                    ephemeral=True
+                )
+                return
+
+            if custom_id.startswith("buy_"):
+                await self.handle_buy_interaction(interaction)
+
+    class AccountTypeSelectView(discord.ui.View):
+        def __init__(self, channels):
+            super().__init__(timeout=60)
+            self.CHANNELS = channels
+
+        @discord.ui.button(label="Main", style=discord.ButtonStyle.primary)
+        async def main_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.send_modal(AccountListingModal("Main", "main", self.CHANNELS))
+
+        @discord.ui.button(label="PvP", style=discord.ButtonStyle.danger)
+        async def pvp_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.send_modal(AccountListingModal("PvP", "pvp", self.CHANNELS))
+
+        @discord.ui.button(label="HCIM", style=discord.ButtonStyle.success)
+        async def hcim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.send_modal(AccountListingModal("HCIM", "ironman", self.CHANNELS))
+
+        @discord.ui.button(label="Iron", style=discord.ButtonStyle.secondary)
+        async def iron_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.send_modal(AccountListingModal("Iron", "ironman", self.CHANNELS))
+
+        @discord.ui.button(label="Special", style=discord.ButtonStyle.primary)
+        async def special_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.send_modal(AccountListingModal("Special", "main", self.CHANNELS))
+
+    async def handle_buy_interaction(self, interaction: discord.Interaction):
+        try:
+            lister_id = int(interaction.data["custom_id"].split("_")[1])
+        except ValueError:
+            return
+
+        buyer = interaction.user
+        lister = interaction.guild.get_member(lister_id)
+
+        if not lister or lister == buyer:
+            await interaction.response.send_message("❌ Invalid buyer or listing owner.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            buyer: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+            lister: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+        }
+
+        for role_name in ["Moderator", "Admin"]:
+            role = discord.utils.get(interaction.guild.roles, name=role_name)
+            if role:
+                overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+
+        try:
+            ticket_channel = await interaction.guild.create_text_channel(
+                name=f"ticket-{buyer.name}-and-{lister.name}",
+                overwrites=overwrites,
+                topic="Trade ticket between buyer and seller."
+            )
+
+            if not interaction.message or not interaction.message.embeds:
+                await interaction.followup.send("❌ Original listing message not found.", ephemeral=True)
+                return
+
+            embed_copy = interaction.message.embeds[0]
+
+            ticket_message = await ticket_channel.send(
+                f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
+                embed=embed_copy
+            )
+
+            from .tickets import TicketActions
+            await ticket_message.edit(view=TicketActions(ticket_message, interaction.message, buyer, lister))
+
+            await interaction.followup.send(f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True)
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
+
+async def setup(bot):
     print("Adding ListingCog...")  # Debug print
     cog = ListingCog(bot)
-    bot.add_command(cog.setup_listings)  # Explicitly add the command
-    bot.add_cog(cog)
+    await bot.add_cog(cog)  # Make this an await call
     print("ListingCog added successfully")  # Debug print
