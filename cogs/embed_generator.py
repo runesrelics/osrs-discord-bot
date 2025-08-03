@@ -89,24 +89,28 @@ class EmbedGenerator:
 
     def fit_text_to_box(self, text, font, max_width, max_height):
         """Fit and wrap text to a given box size"""
-        words = text.split()
+        # Split by actual line breaks first, then by words
+        paragraphs = text.split('\n')
         lines = []
-        current_line = []
         
-        for word in words:
-            current_line.append(word)
-            line_width = font.getlength(" ".join(current_line))
-            if line_width > max_width:
-                if len(current_line) == 1:
-                    lines.append(current_line[0])
-                    current_line = []
-                else:
-                    current_line.pop()
-                    lines.append(" ".join(current_line))
-                    current_line = [word]
-        
-        if current_line:
-            lines.append(" ".join(current_line))
+        for paragraph in paragraphs:
+            words = paragraph.split()
+            current_line = []
+            
+            for word in words:
+                current_line.append(word)
+                line_width = font.getlength(" ".join(current_line))
+                if line_width > max_width:
+                    if len(current_line) == 1:
+                        lines.append(current_line[0])
+                        current_line = []
+                    else:
+                        current_line.pop()
+                        lines.append(" ".join(current_line))
+                        current_line = [word]
+            
+            if current_line:
+                lines.append(" ".join(current_line))
         
         return "\n".join(lines)
 
@@ -214,6 +218,19 @@ class EmbedGenerator:
                     desc_zone[2] - desc_zone[0],
                     desc_zone[3] - desc_zone[1]
                 )
+                
+                # Calculate text height to ensure it fits within bounds
+                lines = wrapped_text.split('\n')
+                line_height = desc_font.getbbox('Ay')[3]  # Get line height
+                total_height = len(lines) * line_height + (len(lines) - 1) * TEXT_CONFIG['description']['line_spacing']
+                
+                # If text is too tall, truncate it
+                max_lines = (desc_zone[3] - desc_zone[1]) // (line_height + TEXT_CONFIG['description']['line_spacing'])
+                if len(lines) > max_lines:
+                    lines = lines[:max_lines]
+                    wrapped_text = '\n'.join(lines)
+                
+                # Draw the text with proper positioning
                 draw.text((desc_zone[0], desc_zone[1]), wrapped_text, 
                          font=desc_font, fill=(255, 255, 255),
                          spacing=TEXT_CONFIG['description']['line_spacing'])
