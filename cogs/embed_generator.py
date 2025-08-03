@@ -40,7 +40,7 @@ class EmbedGenerator:
             return ascii_text if ascii_text.strip() else text
 
     def find_color_zone(self, map_image, target_color):
-        """Find the bounding box of a specific color zone - optimized for large images"""
+        """Find the bounding box of a specific color zone"""
         width, height = map_image.size
         left = width
         top = height
@@ -52,50 +52,25 @@ class EmbedGenerator:
         if len(target_color) > 3:
             target_color = target_color[:3]
 
-        # Use numpy for much faster pixel processing if available
-        try:
-            import numpy as np
-            # Convert image to numpy array for faster processing
-            img_array = np.array(map_image)
-            
-            # Find all pixels matching the target color
-            mask = np.all(img_array == target_color, axis=2)
-            
-            if np.any(mask):
-                # Get coordinates of matching pixels
-                coords = np.where(mask)
-                y_coords, x_coords = coords
+        # Scan the image for matching pixels
+        for y in range(height):
+            for x in range(width):
+                pixel = map_image.getpixel((x, y))
+                # Convert pixel to RGB if it's not already
+                if len(pixel) > 3:
+                    pixel = pixel[:3]
                 
-                left = np.min(x_coords)
-                top = np.min(y_coords)
-                right = np.max(x_coords)
-                bottom = np.max(y_coords)
-                found = True
-                
-            return (left, top, right, bottom) if found else None
-            
-        except ImportError:
-            # Fallback to optimized manual scanning
-            # Sample every 4th pixel to speed up processing
-            step = 4
-            for y in range(0, height, step):
-                for x in range(0, width, step):
-                    pixel = map_image.getpixel((x, y))
-                    # Convert pixel to RGB if it's not already
-                    if len(pixel) > 3:
-                        pixel = pixel[:3]
-                    
-                    if pixel == target_color:
-                        found = True
-                        left = min(left, x)
-                        top = min(top, y)
-                        right = max(right, x)
-                        bottom = max(bottom, y)
+                if pixel == target_color:
+                    found = True
+                    left = min(left, x)
+                    top = min(top, y)
+                    right = max(right, x)
+                    bottom = max(bottom, y)
 
-            if not found:
-                return None
+        if not found:
+            return None
 
-            return (left, top, right, bottom)
+        return (left, top, right, bottom)
 
     def create_circular_mask(self, size):
         """Create a circular mask for the avatar"""
@@ -111,22 +86,6 @@ class EmbedGenerator:
                 if resp.status == 200:
                     return io.BytesIO(await resp.read())
         return None
-
-    def get_user_vouches(self, user_id):
-        """Get the total number of vouches for a user"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Get total vouches for the user
-            cursor.execute("SELECT COUNT(*) FROM vouches WHERE user_id = ?", (user_id,))
-            vouch_count = cursor.fetchone()[0]
-            
-            conn.close()
-            return vouch_count
-        except Exception as e:
-            print(f"Error getting vouches for user {user_id}: {e}")
-            return 0
 
     def fit_text_to_box(self, text, font, max_width, max_height):
         """Fit and wrap text to a given box size"""
@@ -151,6 +110,22 @@ class EmbedGenerator:
         
         return "\n".join(lines)
 
+    def get_user_vouches(self, user_id):
+        """Get the total number of vouches for a user"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get total vouches for the user
+            cursor.execute("SELECT COUNT(*) FROM vouches WHERE user_id = ?", (user_id,))
+            vouch_count = cursor.fetchone()[0]
+            
+            conn.close()
+            return vouch_count
+        except Exception as e:
+            print(f"Error getting vouches for user {user_id}: {e}")
+            return 0
+
     async def generate_listing_image(self, account_type, user, description, price, payment_methods, showcase_image_bytes):
         """Generate a listing using the template and mapping system"""
         try:
@@ -166,17 +141,13 @@ class EmbedGenerator:
             template = Image.open(template_path).convert('RGBA')
             map_image = Image.open(map_path).convert('RGB')
             
-            # Scale both template and map to 200% (2x size) for better Discord visibility while keeping file size reasonable
-            original_size = template.size
-            new_size = (original_size[0] * 2, original_size[1] * 2)
-            template = template.resize(new_size, Image.LANCZOS)
-            map_image = map_image.resize(new_size, Image.LANCZOS)
-            
             draw = ImageDraw.Draw(template)
             
             # Try to use Roboto font, fallback to system fonts if not available
             try:
-                username_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['username']['font_size'])
+                # Double the username font size (100% increase)
+                username_font_size = TEXT_CONFIG['username']['font_size'] * 2
+                username_font = ImageFont.truetype(self.font_path, username_font_size)
                 price_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['price']['font_size'])
                 desc_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['description']['font_size'])
                 type_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['account_type']['font_size'])
@@ -186,7 +157,8 @@ class EmbedGenerator:
                 print(f"Font path attempted: {self.font_path}")
                 print("Falling back to system fonts...")
                 try:
-                    username_font = ImageFont.truetype("arial", TEXT_CONFIG['username']['font_size'])
+                    username_font_size = TEXT_CONFIG['username']['font_size'] * 2
+                    username_font = ImageFont.truetype("arial", username_font_size)
                     price_font = ImageFont.truetype("arial", TEXT_CONFIG['price']['font_size'])
                     desc_font = ImageFont.truetype("arial", TEXT_CONFIG['description']['font_size'])
                     type_font = ImageFont.truetype("arial", TEXT_CONFIG['account_type']['font_size'])
@@ -222,7 +194,7 @@ class EmbedGenerator:
             # 3. Account Value
             value_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['value'])
             if value_zone:
-                price_text = f"${price}USD/Crypto/GP"
+                price_text = f"${price}"  # Just show the price, no extra text
                 draw.text((value_zone[0], value_zone[1]), price_text, 
                          font=price_font, fill=(255, 255, 255))
 
@@ -247,11 +219,19 @@ class EmbedGenerator:
                 showcase_io = io.BytesIO(showcase_image_bytes)
                 showcase = Image.open(showcase_io).convert('RGBA')
                 
-                # Calculate dimensions to fit zone while maintaining aspect ratio
+                # Calculate dimensions to fill zone while maintaining aspect ratio
                 zone_width = image_zone[2] - image_zone[0]
                 zone_height = image_zone[3] - image_zone[1]
                 
-                showcase.thumbnail((zone_width, zone_height))
+                # Calculate scaling to fill the zone as much as possible
+                scale_x = zone_width / showcase.width
+                scale_y = zone_height / showcase.height
+                scale_factor = max(scale_x, scale_y)  # Use larger scale to fill more area
+                
+                # Resize image to fill zone
+                new_width = int(showcase.width * scale_factor)
+                new_height = int(showcase.height * scale_factor)
+                showcase = showcase.resize((new_width, new_height), Image.LANCZOS)
                 
                 # Center the image in the zone
                 x_offset = image_zone[0] + (zone_width - showcase.width) // 2
@@ -263,7 +243,7 @@ class EmbedGenerator:
             vouch_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['vouches'])
             if vouch_zone:
                 vouch_count = self.get_user_vouches(user.id)
-                vouch_text = f"Vouches: {vouch_count}"
+                vouch_text = str(vouch_count)  # Just the number, no "Vouches:" prefix
                 
                 # Use a smaller font for vouches
                 vouch_font_size = 36  # Smaller than other text
@@ -282,9 +262,9 @@ class EmbedGenerator:
                 
                 draw.text((text_x, text_y), vouch_text, font=vouch_font, fill=(255, 255, 255))
 
-            # Convert to bytes for Discord upload with optimized compression
+            # Convert to bytes for Discord upload
             final_buffer = io.BytesIO()
-            template.save(final_buffer, format='PNG', optimize=True, compress_level=9)
+            template.save(final_buffer, format='PNG')
             final_buffer.seek(0)
             
             return final_buffer
@@ -294,7 +274,5 @@ class EmbedGenerator:
             raise
 
     async def send_listing(self, channel, file):
-        """Send the listing to the channel as an embed for better visibility"""
-        embed = discord.Embed(color=discord.Color.gold())
-        embed.set_image(url="attachment://listing.png")
-        return await channel.send(file=discord.File(file, filename="listing.png"), embed=embed)
+        """Send the listing to the channel"""
+        return await channel.send(file=discord.File(file, filename="listing.png"))
