@@ -2,9 +2,9 @@
 
 # Font sizes (significantly increased)
 FONT_SIZES = {
-    'username': 15,     # Very large for username
-    'price': 30,       # Large for price
-    'description': 20  # Medium for description
+    'username': 72,     # Very large for username
+    'price': 64,       # Large for price
+    'description': 52  # Medium for description
 }
 
 # Profile picture settings
@@ -39,8 +39,4 @@ TEXT_CONFIG = {
         'color': (0, 255, 255),   # RGB color (cyan)
         'right_padding': 30,      # Padding from right edge
     }
-
 }
-
-
-

@@ -11,11 +11,74 @@ class AccountListingModal(Modal):
         self.channel_type = channel_type
         self.CHANNELS = channels
         
-        self.description = TextInput(
-            label="Account Description",
-            style=discord.TextStyle.paragraph,
-            placeholder="Describe your account's stats, quests, achievements, etc.",
-            max_length=500
+        # Account Type Questions
+        self.account_type_question = TextInput(
+            label="Account Type",
+            placeholder="Legacy or Jagex?",
+            max_length=10
+        )
+        
+        self.ban_status = TextInput(
+            label="Ban Status",
+            placeholder="No Bans, Temp Ban, or Perm Ban?",
+            max_length=20
+        )
+        
+        self.email_status = TextInput(
+            label="Email Status (Legacy only)",
+            placeholder="Registered or Unregistered? (Leave empty for Jagex)",
+            max_length=20,
+            required=False
+        )
+        
+        # Left Side Details (4 text inputs)
+        self.detail1 = TextInput(
+            label="Achievement/Item 1",
+            placeholder="e.g., Full graceful",
+            max_length=50
+        )
+        
+        self.detail2 = TextInput(
+            label="Achievement/Item 2", 
+            placeholder="e.g., Fire cape",
+            max_length=50
+        )
+        
+        self.detail3 = TextInput(
+            label="Achievement/Item 3",
+            placeholder="e.g., Dragon defender",
+            max_length=50
+        )
+        
+        self.detail4 = TextInput(
+            label="Achievement/Item 4",
+            placeholder="e.g., MA2 cape",
+            max_length=50
+        )
+        
+        # Right Side Details (4 text inputs)
+        self.detail5 = TextInput(
+            label="Achievement/Item 5",
+            placeholder="e.g., Quest cape",
+            max_length=50
+        )
+        
+        self.detail6 = TextInput(
+            label="Achievement/Item 6",
+            placeholder="e.g., 99 strength",
+            max_length=50
+        )
+        
+        self.detail7 = TextInput(
+            label="Achievement/Item 7",
+            placeholder="e.g., Barrows gloves",
+            max_length=50
+        )
+        
+        self.detail8 = TextInput(
+            label="Achievement/Item 8",
+            placeholder="e.g., Void set",
+            max_length=50
         )
         
         self.price = TextInput(
@@ -30,7 +93,18 @@ class AccountListingModal(Modal):
             max_length=100
         )
 
-        self.add_item(self.description)
+        # Add all items to modal
+        self.add_item(self.account_type_question)
+        self.add_item(self.ban_status)
+        self.add_item(self.email_status)
+        self.add_item(self.detail1)
+        self.add_item(self.detail2)
+        self.add_item(self.detail3)
+        self.add_item(self.detail4)
+        self.add_item(self.detail5)
+        self.add_item(self.detail6)
+        self.add_item(self.detail7)
+        self.add_item(self.detail8)
         self.add_item(self.price)
         self.add_item(self.payment)
 
@@ -89,12 +163,59 @@ class AccountListingModal(Modal):
             await interaction.followup.send("❌ No images were provided in time. Please try listing again.", ephemeral=True)
             return
 
+        # Generate account header based on user inputs
+        account_type = self.account_type_question.value.lower().strip()
+        ban_status = self.ban_status.value.lower().strip()
+        email_status = self.email_status.value.lower().strip() if self.email_status.value else ""
+        
+        # Build header based on account type
+        header_parts = []
+        
+        if account_type == "jagex":
+            header_parts.append("JAGEX ACCOUNT")
+        elif account_type == "legacy":
+            header_parts.append("LEGACY")
+            if email_status:
+                if email_status == "registered":
+                    header_parts.append("REGISTERED")
+                elif email_status == "unregistered":
+                    header_parts.append("UNREGISTERED")
+        
+        # Add ban status
+        if ban_status == "no bans":
+            header_parts.append("NO BANS")
+        elif ban_status == "temp ban":
+            header_parts.append("TEMP BAN")
+        elif ban_status == "perm ban":
+            header_parts.append("PERM BAN")
+        
+        account_header = " | ".join(header_parts)
+        
+        # Build details strings
+        details_left = []
+        details_right = []
+        
+        # Left side details (1-4)
+        for detail in [self.detail1.value, self.detail2.value, self.detail3.value, self.detail4.value]:
+            if detail.strip():
+                details_left.append(detail.strip())
+        
+        # Right side details (5-8)
+        for detail in [self.detail5.value, self.detail6.value, self.detail7.value, self.detail8.value]:
+            if detail.strip():
+                details_right.append(detail.strip())
+        
+        details_left_text = "\n".join(details_left)
+        details_right_text = "\n".join(details_right)
+        
         # Generate the account details template (no images)
         embed_generator = EmbedGenerator()
         account_template = await embed_generator.generate_listing_image(
             self.account_type,
             interaction.user,
-            self.description.value,
+            account_header,
+            details_left_text,
+            details_right_text,
             self.price.value,
             self.payment.value
         )

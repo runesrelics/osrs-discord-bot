@@ -17,7 +17,9 @@ class EmbedGenerator:
             'pfp': (255, 0, 255),      # #ff00ff - Discord user pfp
             'name': (68, 255, 37),      # #44ff25 - Discord display name
             'value': (255, 232, 37),    # #ffe825 - Account value
-            'description': (0, 180, 255),# #00b4ff - Account description
+            'header': (156, 0, 255),    # #9c00ff - Account type header
+            'details_left': (0, 180, 255), # #00b4ff - Left side account details
+            'details_right': (255, 0, 0),  # #ff0000 - Right side account details
             'vouches': (121, 119, 121), # #797779 - User vouches
             'image1': (252, 0, 6),      # #fc0006 - Image 1 location
             'image2': (0, 24, 255),     # #0018ff - Image 2 location
@@ -116,6 +118,24 @@ class EmbedGenerator:
         
         return "\n".join(lines)
 
+    def draw_multiline_text(self, draw, text_lines, font, zone, max_lines=4):
+        """Draw multiple lines with proper spacing"""
+        # Filter out empty lines
+        non_empty_lines = [line.strip() for line in text_lines if line.strip()]
+        
+        # Limit to max_lines
+        lines_to_draw = non_empty_lines[:max_lines]
+        
+        if not lines_to_draw:
+            return
+        
+        line_height = font.getbbox('Ay')[3]  # Get line height
+        spacing = 5  # Pixels between lines
+        
+        for i, line in enumerate(lines_to_draw):
+            y_position = zone[1] + (i * (line_height + spacing))
+            draw.text((zone[0], y_position), line, font=font, fill=(255, 255, 255))
+
     def get_user_vouches(self, user_id):
         """Get the total number of vouches for a user"""
         try:
@@ -132,8 +152,8 @@ class EmbedGenerator:
             print(f"Error getting vouches for user {user_id}: {e}")
             return 0
 
-    async def generate_listing_image(self, account_type, user, description, price, payment_methods):
-        """Generate a listing using the template and mapping system (no showcase image)"""
+    async def generate_listing_image(self, account_type, user, account_header, details_left, details_right, price, payment_methods):
+        """Generate a listing using the template and mapping system with header and split details"""
         try:
             # Load both the clean template and its mapping
             # Handle special case for HCIM template naming
@@ -214,33 +234,27 @@ class EmbedGenerator:
                 
                 draw.text((text_x, text_y), price_text, font=price_font, fill=(255, 255, 255))
 
-            # 4. Description
-            desc_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['description'])
-            if desc_zone:
-                # Handle special characters in description
-                description = self.normalize_text(description)
-                wrapped_text = self.fit_text_to_box(
-                    description,
-                    desc_font,
-                    desc_zone[2] - desc_zone[0],
-                    desc_zone[3] - desc_zone[1]
-                )
-                
-                # Calculate text height to ensure it fits within bounds
-                lines = wrapped_text.split('\n')
-                line_height = desc_font.getbbox('Ay')[3]  # Get line height
-                total_height = len(lines) * line_height + (len(lines) - 1) * TEXT_CONFIG['description']['line_spacing']
-                
-                # If text is too tall, truncate it
-                max_lines = (desc_zone[3] - desc_zone[1]) // (line_height + TEXT_CONFIG['description']['line_spacing'])
-                if len(lines) > max_lines:
-                    lines = lines[:max_lines]
-                    wrapped_text = '\n'.join(lines)
-                
-                # Draw the text with proper positioning
-                draw.text((desc_zone[0], desc_zone[1]), wrapped_text, 
-                         font=desc_font, fill=(255, 255, 255),
-                         spacing=TEXT_CONFIG['description']['line_spacing'])
+            # 4. Account Header
+            header_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['header'])
+            if header_zone:
+                # Handle special characters in header
+                account_header = self.normalize_text(account_header)
+                draw.text((header_zone[0], header_zone[1]), account_header, 
+                         font=username_font, fill=(255, 255, 255))
+
+            # 5. Left Side Details
+            details_left_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['details_left'])
+            if details_left_zone:
+                # Split details_left into lines and draw
+                details_left_lines = [line.strip() for line in details_left.split('\n') if line.strip()]
+                self.draw_multiline_text(draw, details_left_lines, desc_font, details_left_zone, max_lines=4)
+
+            # 6. Right Side Details
+            details_right_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['details_right'])
+            if details_right_zone:
+                # Split details_right into lines and draw
+                details_right_lines = [line.strip() for line in details_right.split('\n') if line.strip()]
+                self.draw_multiline_text(draw, details_right_lines, desc_font, details_right_zone, max_lines=4)
 
 
 
