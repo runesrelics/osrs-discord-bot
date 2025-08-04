@@ -217,11 +217,45 @@ class VouchView:
             # Send completion message
             await self.channel.send("✅ Both users have left vouches! Trade completed successfully.")
             
+            # Post vouches to vouch thread channel
+            await self.post_vouches_to_thread()
+            
             # Ask lister if they want to delete or keep their listing
             await self.ask_listing_deletion()
             
         except Exception as e:
             await self.channel.send(f"❌ Error completing vouching: {str(e)}")
+
+    async def post_vouches_to_thread(self):
+        """Post the vouches to the vouch thread channel"""
+        try:
+            vouch_channel = self.channel.guild.get_channel(self.ticket_actions.CHANNELS["vouch_post"])
+            if not vouch_channel:
+                await self.channel.send("❌ Could not find vouch thread channel.")
+                return
+            
+            # Create vouch post content
+            user_list = list(self.ticket_actions.users.values())
+            user1, user2 = user_list[0], user_list[1]
+            
+            vouch_content = f"⭐ **Trade Completed** ⭐\n\n"
+            vouch_content += f"**Trade Participants:** {user1.mention} & {user2.mention}\n"
+            vouch_content += f"**Channel:** {self.channel.mention}\n\n"
+            
+            # Add individual vouch details
+            for user_id, rating in self.ratings.items():
+                user = self.channel.guild.get_member(int(user_id))
+                comment = self.comments.get(user_id, "")
+                stars = "⭐" * rating
+                vouch_content += f"**{user.display_name if user else f'User {user_id}'}:** {stars} ({rating}/5)\n"
+                if comment and comment != "No comment provided":
+                    vouch_content += f"*Comment:* {comment}\n"
+                vouch_content += "\n"
+            
+            await vouch_channel.send(vouch_content)
+            
+        except Exception as e:
+            await self.channel.send(f"❌ Error posting vouches to thread: {str(e)}")
 
     def update_vouch(self, user_id, stars, comment):
         with sqlite3.connect(self.DB_PATH) as conn:
@@ -259,7 +293,7 @@ class VouchView:
 
     async def ask_listing_deletion(self):
         """Ask the lister if they want to delete or keep their listing"""
-        view = ListingDeletionView(self.listing_message)
+        view = ListingDeletionView(self.listing_message, self.ticket_actions)
         await self.channel.send(
             f"{self.lister.mention}, would you like to delete your listing or keep it active?",
             view=view
@@ -338,9 +372,10 @@ class VouchCommentModal(Modal):
         )
 
 class ListingDeletionView(View):
-    def __init__(self, listing_message):
+    def __init__(self, listing_message, ticket_actions=None):
         super().__init__(timeout=300)  # 5 minute timeout
         self.listing_message = listing_message
+        self.ticket_actions = ticket_actions
 
     @discord.ui.button(label="🗑️ Delete Listing", style=discord.ButtonStyle.danger)
     async def delete_listing(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -349,10 +384,18 @@ class ListingDeletionView(View):
             await interaction.response.send_message("✅ Listing has been deleted.", ephemeral=True)
         except:
             await interaction.response.send_message("❌ Failed to delete listing.", ephemeral=True)
+        
+        # Archive the ticket after listing decision
+        if self.ticket_actions:
+            await self.ticket_actions.archive_ticket(interaction.channel, self.listing_message)
 
     @discord.ui.button(label="✅ Keep Listing", style=discord.ButtonStyle.success)
     async def keep_listing(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("✅ Listing will remain active.", ephemeral=True)
+        
+        # Archive the ticket after listing decision
+        if self.ticket_actions:
+            await self.ticket_actions.archive_ticket(interaction.channel, self.listing_message)
 
 async def cleanup_bot_messages(channel, limit=100):
     async for msg in channel.history(limit=limit):
