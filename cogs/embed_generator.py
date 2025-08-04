@@ -353,13 +353,13 @@ class EmbedGenerator:
     async def send_listing(self, channel, account_template_file, image_template_file=None):
         """Send the listing to the channel with both account and image templates"""
         # Send account details template first
-        await channel.send(files=[discord.File(account_template_file, filename="account_details.png")])
+        account_msg = await channel.send(files=[discord.File(account_template_file, filename="account_details.png")])
         
         # Send image template as a separate message if provided (this will be the main listing message)
         if image_template_file:
             listing_msg = await channel.send(files=[discord.File(image_template_file, filename="showcase_images.png")])
-            return listing_msg
+            return listing_msg, account_msg
         else:
             # If no image template, return the account details message
             listing_msg = await channel.send(files=[discord.File(account_template_file, filename="account_details.png")])
-            return listing_msg
+            return listing_msg, account_msg

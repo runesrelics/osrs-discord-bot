@@ -110,10 +110,10 @@ class AccountListingModal(Modal):
                 pass
 
         # Send both templates in one message
-        listing_msg = await embed_generator.send_listing(listing_channel, account_template, image_template)
+        listing_msg, account_msg = await embed_generator.send_listing(listing_channel, account_template, image_template)
         
         # Add the listing controls
-        view = ListingView(lister=interaction.user, listing_message=listing_msg)
+        view = ListingView(lister=interaction.user, listing_message=listing_msg, account_message=account_msg)
         await listing_msg.edit(view=view)
         
         await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
@@ -277,10 +277,11 @@ class ListingCog(commands.Cog, name="Listings"):
             await interaction.followup.send(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
 
 class ListingView(View):
-    def __init__(self, lister: discord.User, listing_message: discord.Message):
+    def __init__(self, lister: discord.User, listing_message: discord.Message, account_message: discord.Message):
         super().__init__(timeout=None)
         self.lister = lister
         self.listing_message = listing_message
+        self.account_message = account_message
 
         buy_button = Button(
             label="TRADE",
@@ -319,7 +320,9 @@ class ListingView(View):
             return
 
         try:
+            # Delete both messages
             await self.listing_message.delete()
+            await self.account_message.delete()
             await interaction.response.send_message("✅ Listing deleted.", ephemeral=True)
         except:
             await interaction.response.send_message("❌ Failed to delete listing.", ephemeral=True)
