@@ -31,54 +31,20 @@ class AccountListingModal(Modal):
             required=False
         )
         
-        # Left Side Details (4 text inputs)
-        self.detail1 = TextInput(
-            label="Achievement/Item 1",
-            placeholder="e.g., Full graceful",
-            max_length=50
+        # Left Side Details (1 text input with multiple lines)
+        self.details_left = TextInput(
+            label="Left Side Achievements/Items",
+            placeholder="Enter 4 items, one per line:\ne.g., Full graceful\nFire cape\nDragon defender\nMA2 cape",
+            style=discord.TextStyle.paragraph,
+            max_length=200
         )
         
-        self.detail2 = TextInput(
-            label="Achievement/Item 2", 
-            placeholder="e.g., Fire cape",
-            max_length=50
-        )
-        
-        self.detail3 = TextInput(
-            label="Achievement/Item 3",
-            placeholder="e.g., Dragon defender",
-            max_length=50
-        )
-        
-        self.detail4 = TextInput(
-            label="Achievement/Item 4",
-            placeholder="e.g., MA2 cape",
-            max_length=50
-        )
-        
-        # Right Side Details (4 text inputs)
-        self.detail5 = TextInput(
-            label="Achievement/Item 5",
-            placeholder="e.g., Quest cape",
-            max_length=50
-        )
-        
-        self.detail6 = TextInput(
-            label="Achievement/Item 6",
-            placeholder="e.g., 99 strength",
-            max_length=50
-        )
-        
-        self.detail7 = TextInput(
-            label="Achievement/Item 7",
-            placeholder="e.g., Barrows gloves",
-            max_length=50
-        )
-        
-        self.detail8 = TextInput(
-            label="Achievement/Item 8",
-            placeholder="e.g., Void set",
-            max_length=50
+        # Right Side Details (1 text input with multiple lines)
+        self.details_right = TextInput(
+            label="Right Side Achievements/Items",
+            placeholder="Enter 4 items, one per line:\ne.g., Quest cape\n99 strength\nBarrows gloves\nVoid set",
+            style=discord.TextStyle.paragraph,
+            max_length=200
         )
         
         self.price = TextInput(
@@ -93,20 +59,12 @@ class AccountListingModal(Modal):
             max_length=100
         )
 
-        # Add all items to modal
+        # Add all items to modal (5 total - Discord limit)
         self.add_item(self.account_type_question)
         self.add_item(self.ban_status)
         self.add_item(self.email_status)
-        self.add_item(self.detail1)
-        self.add_item(self.detail2)
-        self.add_item(self.detail3)
-        self.add_item(self.detail4)
-        self.add_item(self.detail5)
-        self.add_item(self.detail6)
-        self.add_item(self.detail7)
-        self.add_item(self.detail8)
-        self.add_item(self.price)
-        self.add_item(self.payment)
+        self.add_item(self.details_left)
+        self.add_item(self.details_right)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -195,15 +153,13 @@ class AccountListingModal(Modal):
         details_left = []
         details_right = []
         
-        # Left side details (1-4)
-        for detail in [self.detail1.value, self.detail2.value, self.detail3.value, self.detail4.value]:
-            if detail.strip():
-                details_left.append(detail.strip())
+        # Left side details (split by lines)
+        if self.details_left.value:
+            details_left = [line.strip() for line in self.details_left.value.split('\n') if line.strip()]
         
-        # Right side details (5-8)
-        for detail in [self.detail5.value, self.detail6.value, self.detail7.value, self.detail8.value]:
-            if detail.strip():
-                details_right.append(detail.strip())
+        # Right side details (split by lines)
+        if self.details_right.value:
+            details_right = [line.strip() for line in self.details_right.value.split('\n') if line.strip()]
         
         details_left_text = "\n".join(details_left)
         details_right_text = "\n".join(details_right)
