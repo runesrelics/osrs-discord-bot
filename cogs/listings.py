@@ -203,14 +203,26 @@ class BanStatusSelectView(View):
             # For Jagex accounts, proceed directly to modal
             await self.proceed_to_modal(interaction)
 
-    @discord.ui.button(label="Temp Banned", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="Temp ban", style=discord.ButtonStyle.danger)
     async def temp_banned_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_id = interaction.user.id
         user_selections[user_id]['ban_status'] = 'temp ban'
         
         # Check if this is a Legacy account to show email status
         if user_selections[user_id].get('account_type') == 'legacy':
-            await interaction.response.send_message("✅ Ban Status: Temp Banned\n\n**Email Status:**", view=EmailStatusSelectView(self.account_type, self.channel_type, self.CHANNELS), ephemeral=True)
+            await interaction.response.send_message("✅ Ban Status: Temp ban\n\n**Email Status:**", view=EmailStatusSelectView(self.account_type, self.channel_type, self.CHANNELS), ephemeral=True)
+        else:
+            # For Jagex accounts, proceed directly to modal
+            await self.proceed_to_modal(interaction)
+
+    @discord.ui.button(label="Expired Ban", style=discord.ButtonStyle.secondary)
+    async def expired_ban_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        user_selections[user_id]['ban_status'] = 'expired ban'
+        
+        # Check if this is a Legacy account to show email status
+        if user_selections[user_id].get('account_type') == 'legacy':
+            await interaction.response.send_message("✅ Ban Status: Expired Ban\n\n**Email Status:**", view=EmailStatusSelectView(self.account_type, self.channel_type, self.CHANNELS), ephemeral=True)
         else:
             # For Jagex accounts, proceed directly to modal
             await self.proceed_to_modal(interaction)
