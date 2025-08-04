@@ -806,8 +806,6 @@ class EditConfirmationView(View):
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
             return
         
-        await interaction.response.defer(ephemeral=True)
-        
         try:
             # Get the stored listing data to pre-fill the modal BEFORE deleting
             if self.listing_view.listing_id:
@@ -845,20 +843,21 @@ class EditConfirmationView(View):
                         modal.details_right.default = listing_data.get('details_right', '')
                         modal.price.default = listing_data.get('price', '')
                         
-                        await interaction.followup.send_modal(modal)
+                        # Send the modal directly without deferring
+                        await interaction.response.send_modal(modal)
                         return
                     else:
                         print(f"Debug: No listing data found for ID {self.listing_view.listing_id}")
-                        await interaction.followup.send("❌ Could not retrieve listing data for editing. The listing may have been deleted or corrupted.", ephemeral=True)
+                        await interaction.response.send_message("❌ Could not retrieve listing data for editing. The listing may have been deleted or corrupted.", ephemeral=True)
                         return
                         
                 except Exception as e:
                     print(f"Debug: Error retrieving listing {self.listing_view.listing_id}: {str(e)}")
-                    await interaction.followup.send(f"❌ Error retrieving listing data: {str(e)}", ephemeral=True)
+                    await interaction.response.send_message(f"❌ Error retrieving listing data: {str(e)}", ephemeral=True)
                     return
             
             # Fallback if no stored data
-            await interaction.followup.send("❌ Could not retrieve listing data for editing.", ephemeral=True)
+            await interaction.response.send_message("❌ Could not retrieve listing data for editing.", ephemeral=True)
             
         except Exception as e:
             print(f"Error editing listing: {str(e)}")

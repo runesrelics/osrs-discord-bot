@@ -381,6 +381,16 @@ class EmbedGenerator:
                     else:
                         print(f"Debug: Image {i+1} is within template bounds")
                     
+                    # Check for zone overlap with previous images
+                    for j in range(i):
+                        prev_color_key = f'image{j+1}'
+                        prev_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS[prev_color_key])
+                        if prev_zone:
+                            # Check if current image overlaps with previous image's zone
+                            if (x_offset < prev_zone[2] and x_offset + new_width > prev_zone[0] and
+                                y_offset < prev_zone[3] and y_offset + new_height > prev_zone[1]):
+                                print(f"Debug: WARNING - Image {i+1} overlaps with Image {j+1}!")
+                    
                     template.paste(image, (x_offset, y_offset))
                     print(f"Debug: Image {i+1} pasted successfully")
                 else:
