@@ -133,7 +133,7 @@ class EmbedGenerator:
         spacing = 5  # Pixels between lines
         
         for i, line in enumerate(lines_to_draw):
-            y_position = zone[1] + (i * (line_height + spacing))
+            y_position = zone[1] + 15 + (i * (line_height + spacing))  # Add 15px padding down
             draw.text((zone[0], y_position), line, font=font, fill=(255, 255, 255))
 
     def get_user_vouches(self, user_id):
