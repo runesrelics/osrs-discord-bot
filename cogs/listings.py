@@ -42,11 +42,6 @@ class AccountListingModal(Modal):
         target_channel_id = target_channels[self.channel_type]
         listing_channel = interaction.guild.get_channel(target_channel_id)
 
-        await interaction.followup.send(
-            "Please upload ONE showcase image for your listing (30 seconds).",
-            ephemeral=True
-        )
-
         # Collect multiple images (up to 3)
         image_bytes_list = []
         
@@ -107,7 +102,12 @@ class AccountListingModal(Modal):
         # Generate the image template if images were provided
         image_template = None
         if image_bytes_list:
-            image_template = await embed_generator.generate_image_template(image_bytes_list)
+            try:
+                image_template = await embed_generator.generate_image_template(image_bytes_list)
+            except FileNotFoundError as e:
+                print(f"Warning: Image template files not found. Skipping image generation. Error: {e}")
+                # Continue without image template
+                pass
 
         # Send both templates in one message
         listing_msg = await embed_generator.send_listing(listing_channel, account_template, image_template)
