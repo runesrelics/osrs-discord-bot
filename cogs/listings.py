@@ -698,10 +698,16 @@ class ListingView(View):
             await interaction.response.send_message("You can't use this button.", ephemeral=True)
             return
             
+        # Get the channels from the cog
+        channels = {}
+        cog = interaction.client.get_cog("Listings")
+        if cog:
+            channels = cog.CHANNELS
+        
         await interaction.response.send_message(
             "⚠️ **Are you sure you want to edit this listing?**\n"
             "Your old listing will be deleted and replaced with a new one.",
-            view=EditConfirmationView(self),
+            view=EditConfirmationView(self, channels),
             ephemeral=True
         )
 
@@ -789,9 +795,10 @@ class ListingView(View):
             await interaction.response.send_message("❌ Failed to delete listing.", ephemeral=True)
 
 class EditConfirmationView(View):
-    def __init__(self, listing_view):
+    def __init__(self, listing_view, channels):
         super().__init__(timeout=60)
         self.listing_view = listing_view
+        self.channels = channels
 
     @discord.ui.button(label="Yes, Edit Listing", style=discord.ButtonStyle.danger)
     async def confirm_edit(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -825,7 +832,7 @@ class EditConfirmationView(View):
                     modal = AccountListingModal(
                         account_type=listing_data['account_type'],
                         channel_type=listing_data['channel_type'],
-                        channels=self.listing_view.listing_view.CHANNELS if hasattr(self.listing_view, 'CHANNELS') else {},
+                        channels=self.channels,
                         user_selections=listing_data['user_selections']
                     )
                     
