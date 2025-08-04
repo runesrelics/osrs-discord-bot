@@ -241,7 +241,13 @@ class EmbedGenerator:
                 account_header = self.normalize_text(account_header)
                 # Use a smaller font for the header
                 header_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['account_type']['font_size']) if os.path.exists(self.font_path) else ImageFont.load_default()
-                draw.text((header_zone[0], header_zone[1]), account_header, 
+                
+                # Center the text in the zone
+                text_width, text_height = draw.textbbox((0, 0), account_header, font=header_font)[2:]
+                text_x = header_zone[0] + (header_zone[2] - header_zone[0] - text_width) // 2
+                text_y = header_zone[1] + (header_zone[3] - header_zone[1] - text_height) // 2
+                
+                draw.text((text_x, text_y), account_header, 
                          font=header_font, fill=(255, 255, 255))
 
             # 5. Left Side Details
