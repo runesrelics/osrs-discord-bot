@@ -120,12 +120,17 @@ class AccountListingModal(Modal):
         self.add_item(self.price)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        
-        trusted = any("trusted" in role.name.lower() for role in interaction.user.roles)
-        target_channels = self.CHANNELS["trusted"] if trusted else self.CHANNELS["public"]
-        target_channel_id = target_channels[self.channel_type]
-        listing_channel = interaction.guild.get_channel(target_channel_id)
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            trusted = any("trusted" in role.name.lower() for role in interaction.user.roles)
+            target_channels = self.CHANNELS["trusted"] if trusted else self.CHANNELS["public"]
+            target_channel_id = target_channels[self.channel_type]
+            listing_channel = interaction.guild.get_channel(target_channel_id)
+            
+            if not listing_channel:
+                await interaction.followup.send(f"❌ Error: Could not find the listing channel (ID: {target_channel_id}). Please contact an administrator.", ephemeral=True)
+                return
 
         # Collect multiple images (up to 3)
         image_bytes_list = []
@@ -216,35 +221,41 @@ class AccountListingModal(Modal):
         details_right_text = "\n".join(details_right)
         
         # Generate the account details template (no images)
-        embed_generator = EmbedGenerator()
-        account_template = await embed_generator.generate_listing_image(
-            self.account_type,
-            interaction.user,
-            account_header,
-            details_left_text,
-            details_right_text,
-            self.price.value,
-            "USD"  # Default payment method
-        )
+        try:
+            embed_generator = EmbedGenerator()
+            account_template = await embed_generator.generate_listing_image(
+                self.account_type,
+                interaction.user,
+                account_header,
+                details_left_text,
+                details_right_text,
+                self.price.value,
+                "USD"  # Default payment method
+            )
 
-        # Generate the image template if images were provided
-        image_template = None
-        if image_bytes_list:
-            try:
-                image_template = await embed_generator.generate_image_template(image_bytes_list)
-            except FileNotFoundError as e:
-                print(f"Warning: Image template files not found. Skipping image generation. Error: {e}")
-                # Continue without image template
-                pass
+            # Generate the image template if images were provided
+            image_template = None
+            if image_bytes_list:
+                try:
+                    image_template = await embed_generator.generate_image_template(image_bytes_list)
+                except FileNotFoundError as e:
+                    print(f"Warning: Image template files not found. Skipping image generation. Error: {e}")
+                    # Continue without image template
+                    pass
 
-        # Send both templates in one message
-        listing_msg, account_msg = await embed_generator.send_listing(listing_channel, account_template, image_template)
-        
-        # Add the listing controls
-        view = ListingView(lister=interaction.user, listing_message=listing_msg, account_message=account_msg)
-        await listing_msg.edit(view=view)
-        
-        await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
+            # Send both templates in one message
+            listing_msg, account_msg = await embed_generator.send_listing(listing_channel, account_template, image_template)
+            
+            # Add the listing controls
+            view = ListingView(lister=interaction.user, listing_message=listing_msg, account_message=account_msg)
+            await listing_msg.edit(view=view)
+            
+            await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
+            
+        except Exception as e:
+            print(f"Error in on_submit: {str(e)}")
+            await interaction.followup.send(f"❌ Something went wrong: {str(e)}. Please try again.", ephemeral=True)
+            return
 
 class ListingCog(commands.Cog, name="Listings"):
     """Commands for managing listings"""
@@ -327,30 +338,7 @@ class ListingCog(commands.Cog, name="Listings"):
             if custom_id.startswith("buy_"):
                 await self.handle_buy_interaction(interaction)
 
-    class AccountTypeSelectView(discord.ui.View):
-        def __init__(self, channels):
-            super().__init__(timeout=60)
-            self.CHANNELS = channels
 
-        @discord.ui.button(label="Main", style=discord.ButtonStyle.primary)
-        async def main_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("Main", "main", self.CHANNELS), ephemeral=True)
-
-        @discord.ui.button(label="PvP", style=discord.ButtonStyle.danger)
-        async def pvp_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("PvP", "pvp", self.CHANNELS), ephemeral=True)
-
-        @discord.ui.button(label="HCIM", style=discord.ButtonStyle.success)
-        async def hcim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("HCIM", "ironman", self.CHANNELS), ephemeral=True)
-
-        @discord.ui.button(label="Iron", style=discord.ButtonStyle.secondary)
-        async def iron_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("Iron", "ironman", self.CHANNELS), ephemeral=True)
-
-        @discord.ui.button(label="Special", style=discord.ButtonStyle.primary)
-        async def special_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("Special", "main", self.CHANNELS), ephemeral=True)
 
     async def handle_buy_interaction(self, interaction: discord.Interaction):
         try:
