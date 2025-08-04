@@ -139,7 +139,7 @@ class TicketActions(View):
             await interaction.response.send_message("You are not part of this trade.", ephemeral=True)
             return
         await interaction.channel.send("❌ Trade has been cancelled.")
-        await self.archive_ticket(interaction.channel, self.listing_message)
+        await self.archive_ticket(interaction.channel)
 
     async def start_vouching(self, channel):
         user_list = list(self.users.values())
@@ -156,7 +156,7 @@ class TicketActions(View):
         await channel.send(f"{user_list[0].mention}, please rate your trade partner:", view=view1)
         await channel.send(f"{user_list[1].mention}, please rate your trade partner:", view=view2)
 
-    async def archive_ticket(self, channel, listing_message=None):
+    async def archive_ticket(self, channel):
         archive = channel.guild.get_channel(self.CHANNELS["archive"])
         transcript_lines = []
         async for msg in channel.history(limit=None, oldest_first=True):
@@ -180,11 +180,6 @@ class TicketActions(View):
                 await user.send(content=f"📄 Transcript from your completed trade in `{channel.name}`.", file=discord_file)
             except discord.Forbidden:
                 await channel.send(f"⚠️ Could not DM transcript to {user.mention}.")
-
-        try:
-            await listing_message.delete()
-        except:
-            pass
 
         await channel.delete()
 
