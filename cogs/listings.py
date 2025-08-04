@@ -76,15 +76,13 @@ class EmailStatusSelectView(View):
     async def registered_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_id = interaction.user.id
         user_selections[user_id]['email_status'] = 'registered'
-        await interaction.response.send_message("✅ Email Status: Registered\n\n**Opening listing modal...**", ephemeral=True)
-        await interaction.followup.send_modal(AccountListingModal(self.account_type, self.channel_type, self.CHANNELS, user_selections[user_id]))
+        await interaction.response.send_modal(AccountListingModal(self.account_type, self.channel_type, self.CHANNELS, user_selections[user_id]))
 
     @discord.ui.button(label="Unregistered", style=discord.ButtonStyle.secondary)
     async def unregistered_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_id = interaction.user.id
         user_selections[user_id]['email_status'] = 'unregistered'
-        await interaction.response.send_message("✅ Email Status: Unregistered\n\n**Opening listing modal...**", ephemeral=True)
-        await interaction.followup.send_modal(AccountListingModal(self.account_type, self.channel_type, self.CHANNELS, user_selections[user_id]))
+        await interaction.response.send_modal(AccountListingModal(self.account_type, self.channel_type, self.CHANNELS, user_selections[user_id]))
 
 class AccountListingModal(Modal):
     def __init__(self, account_type: str, channel_type: str, channels: dict, user_selections: dict):
