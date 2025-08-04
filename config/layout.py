@@ -2,9 +2,9 @@
 
 # Font sizes (significantly increased)
 FONT_SIZES = {
-    'username': 45,     # Very large for username
-    'price': 45,       # Large for price
-    'description': 45  # Medium for description
+    'username': 35,     # Very large for username
+    'price': 35,       # Large for price
+    'description': 35  # Medium for description
 }
 
 # Profile picture settings
@@ -41,3 +41,4 @@ TEXT_CONFIG = {
     }
 
 }
+
