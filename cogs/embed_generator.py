@@ -23,7 +23,7 @@ class EmbedGenerator:
             'vouches': (121, 119, 121), # #797779 - User vouches
             'image1': (252, 0, 6),      # #fc0006 - Image 1 location
             'image2': (0, 24, 255),     # #0018ff - Image 2 location
-            'image3': (255, 222, 0)     # #ffde00 - Image 3 location
+            'image3': (156, 0, 255)     # #9c00ff - Image 3 location (changed from yellow)
         }
 
         # Create fonts directory if it doesn't exist
