@@ -809,15 +809,7 @@ class EditConfirmationView(View):
         await interaction.response.defer(ephemeral=True)
         
         try:
-            # Delete old messages
-            await self.listing_view.listing_message.delete()
-            await self.listing_view.account_message.delete()
-            
-            # Delete from database
-            if self.listing_view.listing_id:
-                delete_listing_from_db(self.listing_view.listing_id)
-            
-            # Get the stored listing data to pre-fill the modal
+            # Get the stored listing data to pre-fill the modal BEFORE deleting
             if self.listing_view.listing_id:
                 try:
                     listing = get_listing(self.listing_view.listing_id)
@@ -826,6 +818,13 @@ class EditConfirmationView(View):
                     if listing and listing.get('listing_data'):
                         listing_data = listing['listing_data']
                         print(f"Debug: Listing data keys: {list(listing_data.keys())}")
+                        
+                        # Delete old messages
+                        await self.listing_view.listing_message.delete()
+                        await self.listing_view.account_message.delete()
+                        
+                        # Delete from database
+                        delete_listing_from_db(self.listing_view.listing_id)
                         
                         # Pre-fill user_selections for the modal
                         user_id = interaction.user.id

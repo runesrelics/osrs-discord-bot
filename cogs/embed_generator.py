@@ -314,6 +314,9 @@ class EmbedGenerator:
             template_path = os.path.join(self.template_dir, "IMAGE_TEMPLATE.png")
             map_path = os.path.join(self.template_dir, f"IMAGE_TEMPLATE_MAP{num_images}.png")
             
+            print(f"Debug: Loading template from: {template_path}")
+            print(f"Debug: Loading map from: {map_path}")
+            
             if not os.path.exists(template_path):
                 raise FileNotFoundError(f"Image template file not found: {template_path}")
             if not os.path.exists(map_path):
@@ -321,6 +324,10 @@ class EmbedGenerator:
             
             template = Image.open(template_path).convert('RGBA')
             map_image = Image.open(map_path).convert('RGB')
+            
+            print(f"Debug: Template size: {template.size}")
+            print(f"Debug: Map size: {map_image.size}")
+            print(f"Debug: Processing {num_images} images")
             
             # Process each image based on the number of images
             for i, image_bytes in enumerate(image_bytes_list):
@@ -364,10 +371,24 @@ class EmbedGenerator:
                     y_offset = image_zone[1] + (zone_height - new_height) // 2
                     
                     print(f"Debug: Image {i+1} final size: {image.size}, position: ({x_offset}, {y_offset})")
+                    print(f"Debug: Image {i+1} zone bounds: ({image_zone[0]}, {image_zone[1]}) to ({image_zone[2]}, {image_zone[3]})")
+                    
+                    # Check if image is within template bounds
+                    template_width, template_height = template.size
+                    if (x_offset + new_width > template_width or y_offset + new_height > template_height or 
+                        x_offset < 0 or y_offset < 0):
+                        print(f"Debug: Image {i+1} would be outside template bounds! Template: {template.size}")
+                    else:
+                        print(f"Debug: Image {i+1} is within template bounds")
                     
                     template.paste(image, (x_offset, y_offset))
+                    print(f"Debug: Image {i+1} pasted successfully")
                 else:
                     print(f"Debug: No zone found for image {i+1} or no image bytes")
+                    if not image_zone:
+                        print(f"Debug: Color {color_key} ({self.COLOR_MAPPINGS[color_key]}) not found in map")
+                    if not image_bytes:
+                        print(f"Debug: No image bytes for image {i+1}")
             
             # Convert to bytes
             final_buffer = io.BytesIO()
