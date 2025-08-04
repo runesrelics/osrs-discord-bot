@@ -1,7 +1,8 @@
 import os
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import logging
+import asyncio
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -46,6 +47,34 @@ class CustomBot(commands.Bot):
         for command in self.commands:
             print(f"- {command.name}")
         print("------")
+        
+        # Start the daily cleanup task
+        self.daily_cleanup.start()
+
+    @tasks.loop(hours=24)
+    async def daily_cleanup(self):
+        """Run daily cleanup of old listings"""
+        try:
+            # Get the listings cog
+            listings_cog = self.get_cog("Listings")
+            if listings_cog:
+                await listings_cog.cleanup_old_listings()
+                print("✅ Daily listing cleanup completed")
+            else:
+                print("❌ Listings cog not found for cleanup")
+        except Exception as e:
+            print(f"❌ Error in daily cleanup: {str(e)}")
+
+    @daily_cleanup.before_loop
+    async def before_daily_cleanup(self):
+        """Wait until the next day at 2 AM to start the loop"""
+        await self.wait_until_ready()
+        # Wait until 2 AM
+        now = discord.utils.utcnow()
+        next_run = now.replace(hour=2, minute=0, second=0, microsecond=0)
+        if next_run <= now:
+            next_run = next_run.replace(day=next_run.day + 1)
+        await discord.utils.sleep_until(next_run)
 
 bot = CustomBot()
 
