@@ -132,126 +132,131 @@ class AccountListingModal(Modal):
                 await interaction.followup.send(f"❌ Error: Could not find the listing channel (ID: {target_channel_id}). Please contact an administrator.", ephemeral=True)
                 return
 
-        # Collect multiple images (up to 3)
-        image_bytes_list = []
+            # Collect multiple images (up to 3)
+            image_bytes_list = []
+            
+            await interaction.followup.send("📸 Please upload up to 3 images for your listing. Upload them one by one, or type 'done' when finished.", ephemeral=True)
         
-        await interaction.followup.send("📸 Please upload up to 3 images for your listing. Upload them one by one, or type 'done' when finished.", ephemeral=True)
-        
-        def check(m):
-            return (m.author == interaction.user and 
-                   m.channel == interaction.channel and 
-                   (m.attachments or m.content.lower() == 'done'))
+            def check(m):
+                return (m.author == interaction.user and 
+                       m.channel == interaction.channel and 
+                       (m.attachments or m.content.lower() == 'done'))
 
-        try:
-            while len(image_bytes_list) < 3:
-                msg = await interaction.client.wait_for("message", timeout=60.0, check=check)
-                
-                if msg.content.lower() == 'done':
-                    break
-                
-                if msg.attachments:
-                    # Process all attachments in the message
-                    for attachment in msg.attachments:
-                        if len(image_bytes_list) >= 3:
-                            break
-                        image_bytes = await attachment.read()
-                        image_bytes_list.append(image_bytes)
+            try:
+                while len(image_bytes_list) < 3:
+                    msg = await interaction.client.wait_for("message", timeout=60.0, check=check)
                     
-                    # Clean up the message
-                    try:
-                        await msg.delete()
-                    except:
-                        pass
-                    
-                    if len(image_bytes_list) < 3:
-                        await interaction.followup.send(f"📸 {len(msg.attachments)} image(s) uploaded! Total: {len(image_bytes_list)}/3. Upload more images or type 'done'.", ephemeral=True)
-                    else:
-                        await interaction.followup.send("📸 Maximum 3 images reached! Processing your listing...", ephemeral=True)
+                    if msg.content.lower() == 'done':
                         break
-                else:
-                    await interaction.followup.send("❌ Please upload an image or type 'done'.", ephemeral=True)
-                    try:
-                        await msg.delete()
-                    except:
-                        pass
+                    
+                    if msg.attachments:
+                        # Process all attachments in the message
+                        for attachment in msg.attachments:
+                            if len(image_bytes_list) >= 3:
+                                break
+                            image_bytes = await attachment.read()
+                            image_bytes_list.append(image_bytes)
                         
-        except asyncio.TimeoutError:
-            await interaction.followup.send("❌ No images were provided in time. Please try listing again.", ephemeral=True)
-            return
+                        # Clean up the message
+                        try:
+                            await msg.delete()
+                        except:
+                            pass
+                        
+                        if len(image_bytes_list) < 3:
+                            await interaction.followup.send(f"📸 {len(msg.attachments)} image(s) uploaded! Total: {len(image_bytes_list)}/3. Upload more images or type 'done'.", ephemeral=True)
+                        else:
+                            await interaction.followup.send("📸 Maximum 3 images reached! Processing your listing...", ephemeral=True)
+                            break
+                    else:
+                        await interaction.followup.send("❌ Please upload an image or type 'done'.", ephemeral=True)
+                        try:
+                            await msg.delete()
+                        except:
+                            pass
+                            
+            except asyncio.TimeoutError:
+                await interaction.followup.send("❌ No images were provided in time. Please try listing again.", ephemeral=True)
+                return
 
-        # Generate account header based on stored selections
-        account_type = self.user_selections.get('account_type', '').lower().strip()
-        ban_status = self.user_selections.get('ban_status', '').lower().strip()
-        email_status = self.user_selections.get('email_status', '').lower().strip()
-        
-        # Build header based on account type
-        header_parts = []
-        
-        if account_type == "jagex":
-            header_parts.append("JAGEX ACCOUNT")
-        elif account_type == "legacy":
-            header_parts.append("LEGACY")
-            if email_status:
-                if email_status == "registered":
-                    header_parts.append("REGISTERED")
-                elif email_status == "unregistered":
-                    header_parts.append("UNREGISTERED")
-        
-        # Add ban status
-        if ban_status == "no bans":
-            header_parts.append("NO BANS")
-        elif ban_status == "temp ban":
-            header_parts.append("TEMP BAN")
-        
-        account_header = " | ".join(header_parts)
-        
-        # Build details strings
-        details_left = []
-        details_right = []
-        
-        # Left side details (split by lines)
-        if self.details_left.value:
-            details_left = [line.strip() for line in self.details_left.value.split('\n') if line.strip()]
-        
-        # Right side details (split by lines)
-        if self.details_right.value:
-            details_right = [line.strip() for line in self.details_right.value.split('\n') if line.strip()]
-        
-        details_left_text = "\n".join(details_left)
-        details_right_text = "\n".join(details_right)
-        
-        # Generate the account details template (no images)
-        try:
-            embed_generator = EmbedGenerator()
-            account_template = await embed_generator.generate_listing_image(
-                self.account_type,
-                interaction.user,
-                account_header,
-                details_left_text,
-                details_right_text,
-                self.price.value,
-                "USD"  # Default payment method
-            )
+            # Generate account header based on stored selections
+            account_type = self.user_selections.get('account_type', '').lower().strip()
+            ban_status = self.user_selections.get('ban_status', '').lower().strip()
+            email_status = self.user_selections.get('email_status', '').lower().strip()
+            
+            # Build header based on account type
+            header_parts = []
+            
+            if account_type == "jagex":
+                header_parts.append("JAGEX ACCOUNT")
+            elif account_type == "legacy":
+                header_parts.append("LEGACY")
+                if email_status:
+                    if email_status == "registered":
+                        header_parts.append("REGISTERED")
+                    elif email_status == "unregistered":
+                        header_parts.append("UNREGISTERED")
+            
+            # Add ban status
+            if ban_status == "no bans":
+                header_parts.append("NO BANS")
+            elif ban_status == "temp ban":
+                header_parts.append("TEMP BAN")
+            
+            account_header = " | ".join(header_parts)
+            
+            # Build details strings
+            details_left = []
+            details_right = []
+            
+            # Left side details (split by lines)
+            if self.details_left.value:
+                details_left = [line.strip() for line in self.details_left.value.split('\n') if line.strip()]
+            
+            # Right side details (split by lines)
+            if self.details_right.value:
+                details_right = [line.strip() for line in self.details_right.value.split('\n') if line.strip()]
+            
+            details_left_text = "\n".join(details_left)
+            details_right_text = "\n".join(details_right)
+            
+            # Generate the account details template (no images)
+            try:
+                embed_generator = EmbedGenerator()
+                account_template = await embed_generator.generate_listing_image(
+                    self.account_type,
+                    interaction.user,
+                    account_header,
+                    details_left_text,
+                    details_right_text,
+                    self.price.value,
+                    "USD"  # Default payment method
+                )
 
-            # Generate the image template if images were provided
-            image_template = None
-            if image_bytes_list:
-                try:
-                    image_template = await embed_generator.generate_image_template(image_bytes_list)
-                except FileNotFoundError as e:
-                    print(f"Warning: Image template files not found. Skipping image generation. Error: {e}")
-                    # Continue without image template
-                    pass
+                # Generate the image template if images were provided
+                image_template = None
+                if image_bytes_list:
+                    try:
+                        image_template = await embed_generator.generate_image_template(image_bytes_list)
+                    except FileNotFoundError as e:
+                        print(f"Warning: Image template files not found. Skipping image generation. Error: {e}")
+                        # Continue without image template
+                        pass
 
-            # Send both templates in one message
-            listing_msg, account_msg = await embed_generator.send_listing(listing_channel, account_template, image_template)
-            
-            # Add the listing controls
-            view = ListingView(lister=interaction.user, listing_message=listing_msg, account_message=account_msg)
-            await listing_msg.edit(view=view)
-            
-            await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
-            
+                # Send both templates in one message
+                listing_msg, account_msg = await embed_generator.send_listing(listing_channel, account_template, image_template)
+                
+                # Add the listing controls
+                view = ListingView(lister=interaction.user, listing_message=listing_msg, account_message=account_msg)
+                await listing_msg.edit(view=view)
+                
+                await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
+                
+            except Exception as e:
+                print(f"Error generating listing: {str(e)}")
+                await interaction.followup.send(f"❌ Error generating listing: {str(e)}. Please try again or contact an administrator.", ephemeral=True)
+                return
+                
         except Exception as e:
             print(f"Error in on_submit: {str(e)}")
             await interaction.followup.send(f"❌ Something went wrong: {str(e)}. Please try again.", ephemeral=True)
@@ -318,7 +323,7 @@ class ListingCog(commands.Cog, name="Listings"):
             custom_id = interaction.data.get("custom_id", "")
 
             if custom_id == "list_account":
-                view = self.AccountTypeSelectView(self.CHANNELS)
+                view = AccountTypeSelectView("Main", "main", self.CHANNELS)
                 await interaction.response.send_message(
                     "Select the type of account you want to list:",
                     view=view,
