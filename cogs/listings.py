@@ -819,29 +819,43 @@ class EditConfirmationView(View):
             
             # Get the stored listing data to pre-fill the modal
             if self.listing_view.listing_id:
-                listing = get_listing(self.listing_view.listing_id)
-                if listing:
-                    listing_data = listing['listing_data']
-                    # Pre-fill user_selections for the modal
-                    user_id = interaction.user.id
-                    if user_id not in user_selections:
-                        user_selections[user_id] = {}
-                    user_selections[user_id].update(listing_data['user_selections'])
+                try:
+                    listing = get_listing(self.listing_view.listing_id)
+                    print(f"Debug: Retrieved listing {self.listing_view.listing_id}: {listing is not None}")
                     
-                    # Open the modal with pre-filled data
-                    modal = AccountListingModal(
-                        account_type=listing_data['account_type'],
-                        channel_type=listing_data['channel_type'],
-                        channels=self.channels,
-                        user_selections=listing_data['user_selections']
-                    )
-                    
-                    # Pre-fill the text inputs
-                    modal.details_left.default = listing_data['details_left']
-                    modal.details_right.default = listing_data['details_right']
-                    modal.price.default = listing_data['price']
-                    
-                    await interaction.followup.send_modal(modal)
+                    if listing and listing.get('listing_data'):
+                        listing_data = listing['listing_data']
+                        print(f"Debug: Listing data keys: {list(listing_data.keys())}")
+                        
+                        # Pre-fill user_selections for the modal
+                        user_id = interaction.user.id
+                        if user_id not in user_selections:
+                            user_selections[user_id] = {}
+                        user_selections[user_id].update(listing_data.get('user_selections', {}))
+                        
+                        # Open the modal with pre-filled data
+                        modal = AccountListingModal(
+                            account_type=listing_data.get('account_type', 'Main'),
+                            channel_type=listing_data.get('channel_type', 'main'),
+                            channels=self.channels,
+                            user_selections=listing_data.get('user_selections', {})
+                        )
+                        
+                        # Pre-fill the text inputs
+                        modal.details_left.default = listing_data.get('details_left', '')
+                        modal.details_right.default = listing_data.get('details_right', '')
+                        modal.price.default = listing_data.get('price', '')
+                        
+                        await interaction.followup.send_modal(modal)
+                        return
+                    else:
+                        print(f"Debug: No listing data found for ID {self.listing_view.listing_id}")
+                        await interaction.followup.send("❌ Could not retrieve listing data for editing. The listing may have been deleted or corrupted.", ephemeral=True)
+                        return
+                        
+                except Exception as e:
+                    print(f"Debug: Error retrieving listing {self.listing_view.listing_id}: {str(e)}")
+                    await interaction.followup.send(f"❌ Error retrieving listing data: {str(e)}", ephemeral=True)
                     return
             
             # Fallback if no stored data

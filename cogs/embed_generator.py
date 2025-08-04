@@ -339,6 +339,8 @@ class EmbedGenerator:
                 
                 # Find the zone for this image
                 image_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS[color_key])
+                print(f"Debug: Image {i+1} zone for color {color_key}: {image_zone}")
+                
                 if image_zone and image_bytes:
                     image_io = io.BytesIO(image_bytes)
                     image = Image.open(image_io).convert('RGBA')
@@ -346,6 +348,8 @@ class EmbedGenerator:
                     # Calculate dimensions to fit within the zone
                     zone_width = image_zone[2] - image_zone[0]
                     zone_height = image_zone[3] - image_zone[1]
+                    
+                    print(f"Debug: Image {i+1} original size: {image.size}, zone size: {zone_width}x{zone_height}")
                     
                     scale_x = zone_width / image.width
                     scale_y = zone_height / image.height
@@ -356,10 +360,14 @@ class EmbedGenerator:
                     image = image.resize((new_width, new_height), Image.LANCZOS)
                     
                     # Center the image in the zone
-                    x_offset = image_zone[0] + (zone_width - image.width) // 2
-                    y_offset = image_zone[1] + (zone_height - image.height) // 2
+                    x_offset = image_zone[0] + (zone_width - new_width) // 2
+                    y_offset = image_zone[1] + (zone_height - new_height) // 2
+                    
+                    print(f"Debug: Image {i+1} final size: {image.size}, position: ({x_offset}, {y_offset})")
                     
                     template.paste(image, (x_offset, y_offset))
+                else:
+                    print(f"Debug: No zone found for image {i+1} or no image bytes")
             
             # Convert to bytes
             final_buffer = io.BytesIO()
