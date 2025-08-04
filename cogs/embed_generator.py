@@ -248,7 +248,7 @@ class EmbedGenerator:
                 text_y = header_zone[1] + (header_zone[3] - header_zone[1] - text_height) // 2
                 
                 draw.text((text_x, text_y), account_header, 
-                         font=header_font, fill=(255, 255, 255))
+                         font=header_font, fill=(231, 185, 57))
 
             # 5. Left Side Details
             details_left_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['details_left'])
