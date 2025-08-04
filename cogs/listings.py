@@ -146,9 +146,6 @@ class AccountListingModal(Modal):
                 while len(image_bytes_list) < 3:
                     msg = await interaction.client.wait_for("message", timeout=60.0, check=check)
                     
-                    if msg.content.lower() == 'done':
-                        break
-                    
                     if msg.attachments:
                         # Process all attachments in the message
                         for attachment in msg.attachments:
@@ -163,13 +160,11 @@ class AccountListingModal(Modal):
                         except:
                             pass
                         
-                        if len(image_bytes_list) < 3:
-                            await interaction.followup.send(f"📸 {len(msg.attachments)} image(s) uploaded! Total: {len(image_bytes_list)}/3. Upload more images or type 'done'.", ephemeral=True)
-                        else:
-                            await interaction.followup.send("📸 Maximum 3 images reached! Processing your listing...", ephemeral=True)
-                            break
+                        # Auto-process the listing after any image upload
+                        await interaction.followup.send(f"📸 {len(msg.attachments)} image(s) uploaded! Total: {len(image_bytes_list)}/3. Processing your listing...", ephemeral=True)
+                        break
                     else:
-                        await interaction.followup.send("❌ Please upload an image or type 'done'.", ephemeral=True)
+                        await interaction.followup.send("❌ Please upload an image.", ephemeral=True)
                         try:
                             await msg.delete()
                         except:
