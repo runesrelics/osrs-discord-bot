@@ -176,8 +176,8 @@ class EmbedGenerator:
             
             # Try to use Roboto font, fallback to system fonts if not available
             try:
-                # Double the username font size (100% increase)
-                username_font_size = TEXT_CONFIG['username']['font_size'] * 2
+                # Use normal font sizes (removed the doubling)
+                username_font_size = TEXT_CONFIG['username']['font_size']
                 username_font = ImageFont.truetype(self.font_path, username_font_size)
                 price_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['price']['font_size'])
                 desc_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['description']['font_size'])
@@ -188,7 +188,7 @@ class EmbedGenerator:
                 print(f"Font path attempted: {self.font_path}")
                 print("Falling back to system fonts...")
                 try:
-                    username_font_size = TEXT_CONFIG['username']['font_size'] * 2
+                    username_font_size = TEXT_CONFIG['username']['font_size']
                     username_font = ImageFont.truetype("arial", username_font_size)
                     price_font = ImageFont.truetype("arial", TEXT_CONFIG['price']['font_size'])
                     desc_font = ImageFont.truetype("arial", TEXT_CONFIG['description']['font_size'])
@@ -239,8 +239,10 @@ class EmbedGenerator:
             if header_zone:
                 # Handle special characters in header
                 account_header = self.normalize_text(account_header)
+                # Use a smaller font for the header
+                header_font = ImageFont.truetype(self.font_path, TEXT_CONFIG['account_type']['font_size']) if os.path.exists(self.font_path) else ImageFont.load_default()
                 draw.text((header_zone[0], header_zone[1]), account_header, 
-                         font=username_font, fill=(255, 255, 255))
+                         font=header_font, fill=(255, 255, 255))
 
             # 5. Left Side Details
             details_left_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['details_left'])

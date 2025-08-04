@@ -4,32 +4,95 @@ from discord.ui import View, Button, Modal, TextInput
 import asyncio
 from .embed_generator import EmbedGenerator
 
-class AccountListingModal(Modal):
+# Store user selections temporarily
+user_selections = {}
+
+class AccountTypeSelectView(View):
     def __init__(self, account_type: str, channel_type: str, channels: dict):
+        super().__init__(timeout=60)
+        self.account_type = account_type
+        self.channel_type = channel_type
+        self.CHANNELS = channels
+
+    @discord.ui.button(label="Legacy", style=discord.ButtonStyle.primary)
+    async def legacy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        if user_id not in user_selections:
+            user_selections[user_id] = {}
+        user_selections[user_id]['account_type'] = 'legacy'
+        await interaction.response.send_message("✅ Account Type: Legacy\n\n**Ban Status:**", view=BanStatusSelectView(self.account_type, self.channel_type, self.CHANNELS), ephemeral=True)
+
+    @discord.ui.button(label="Jagex", style=discord.ButtonStyle.success)
+    async def jagex_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        if user_id not in user_selections:
+            user_selections[user_id] = {}
+        user_selections[user_id]['account_type'] = 'jagex'
+        await interaction.response.send_message("✅ Account Type: Jagex\n\n**Ban Status:**", view=BanStatusSelectView(self.account_type, self.channel_type, self.CHANNELS), ephemeral=True)
+
+class BanStatusSelectView(View):
+    def __init__(self, account_type: str, channel_type: str, channels: dict):
+        super().__init__(timeout=60)
+        self.account_type = account_type
+        self.channel_type = channel_type
+        self.CHANNELS = channels
+
+    @discord.ui.button(label="No Bans", style=discord.ButtonStyle.success)
+    async def no_bans_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        user_selections[user_id]['ban_status'] = 'no bans'
+        
+        # Check if this is a Legacy account to show email status
+        if user_selections[user_id].get('account_type') == 'legacy':
+            await interaction.response.send_message("✅ Ban Status: No Bans\n\n**Email Status:**", view=EmailStatusSelectView(self.account_type, self.channel_type, self.CHANNELS), ephemeral=True)
+        else:
+            # For Jagex accounts, proceed directly to modal
+            await self.proceed_to_modal(interaction)
+
+    @discord.ui.button(label="Temp Banned", style=discord.ButtonStyle.danger)
+    async def temp_banned_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        user_selections[user_id]['ban_status'] = 'temp ban'
+        
+        # Check if this is a Legacy account to show email status
+        if user_selections[user_id].get('account_type') == 'legacy':
+            await interaction.response.send_message("✅ Ban Status: Temp Banned\n\n**Email Status:**", view=EmailStatusSelectView(self.account_type, self.channel_type, self.CHANNELS), ephemeral=True)
+        else:
+            # For Jagex accounts, proceed directly to modal
+            await self.proceed_to_modal(interaction)
+
+    async def proceed_to_modal(self, interaction: discord.Interaction):
+        user_id = interaction.user.id
+        await interaction.response.send_modal(AccountListingModal(self.account_type, self.channel_type, self.CHANNELS, user_selections[user_id]))
+
+class EmailStatusSelectView(View):
+    def __init__(self, account_type: str, channel_type: str, channels: dict):
+        super().__init__(timeout=60)
+        self.account_type = account_type
+        self.channel_type = channel_type
+        self.CHANNELS = channels
+
+    @discord.ui.button(label="Registered", style=discord.ButtonStyle.primary)
+    async def registered_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        user_selections[user_id]['email_status'] = 'registered'
+        await interaction.response.send_message("✅ Email Status: Registered\n\n**Opening listing modal...**", ephemeral=True)
+        await interaction.followup.send_modal(AccountListingModal(self.account_type, self.channel_type, self.CHANNELS, user_selections[user_id]))
+
+    @discord.ui.button(label="Unregistered", style=discord.ButtonStyle.secondary)
+    async def unregistered_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = interaction.user.id
+        user_selections[user_id]['email_status'] = 'unregistered'
+        await interaction.response.send_message("✅ Email Status: Unregistered\n\n**Opening listing modal...**", ephemeral=True)
+        await interaction.followup.send_modal(AccountListingModal(self.account_type, self.channel_type, self.CHANNELS, user_selections[user_id]))
+
+class AccountListingModal(Modal):
+    def __init__(self, account_type: str, channel_type: str, channels: dict, user_selections: dict):
         super().__init__(title=f"List an OSRS {account_type} Account")
         self.account_type = account_type
         self.channel_type = channel_type
         self.CHANNELS = channels
-        
-        # Account Type Questions
-        self.account_type_question = TextInput(
-            label="Account Type",
-            placeholder="Legacy or Jagex?",
-            max_length=10
-        )
-        
-        self.ban_status = TextInput(
-            label="Ban Status",
-            placeholder="No Bans, Temp Ban, or Perm Ban?",
-            max_length=20
-        )
-        
-        self.email_status = TextInput(
-            label="Email Status (Legacy only)",
-            placeholder="Registered or Unregistered? (Leave empty for Jagex)",
-            max_length=20,
-            required=False
-        )
+        self.user_selections = user_selections
         
         # Left Side Details (1 text input with multiple lines)
         self.details_left = TextInput(
@@ -49,22 +112,14 @@ class AccountListingModal(Modal):
         
         self.price = TextInput(
             label="Price / Value",
-            placeholder="Enter your asking price",
+            placeholder="Enter your asking price in USD",
             max_length=50
         )
-        
-        self.payment = TextInput(
-            label="Payment Methods",
-            placeholder="List accepted payment methods",
-            max_length=100
-        )
 
-        # Add all items to modal (5 total - Discord limit)
-        self.add_item(self.account_type_question)
-        self.add_item(self.ban_status)
-        self.add_item(self.email_status)
+        # Add all items to modal (3 total - much more manageable!)
         self.add_item(self.details_left)
         self.add_item(self.details_right)
+        self.add_item(self.price)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -121,10 +176,10 @@ class AccountListingModal(Modal):
             await interaction.followup.send("❌ No images were provided in time. Please try listing again.", ephemeral=True)
             return
 
-        # Generate account header based on user inputs
-        account_type = self.account_type_question.value.lower().strip()
-        ban_status = self.ban_status.value.lower().strip()
-        email_status = self.email_status.value.lower().strip() if self.email_status.value else ""
+        # Generate account header based on stored selections
+        account_type = self.user_selections.get('account_type', '').lower().strip()
+        ban_status = self.user_selections.get('ban_status', '').lower().strip()
+        email_status = self.user_selections.get('email_status', '').lower().strip()
         
         # Build header based on account type
         header_parts = []
@@ -144,8 +199,6 @@ class AccountListingModal(Modal):
             header_parts.append("NO BANS")
         elif ban_status == "temp ban":
             header_parts.append("TEMP BAN")
-        elif ban_status == "perm ban":
-            header_parts.append("PERM BAN")
         
         account_header = " | ".join(header_parts)
         
@@ -173,7 +226,7 @@ class AccountListingModal(Modal):
             details_left_text,
             details_right_text,
             self.price.value,
-            self.payment.value
+            "USD"  # Default payment method
         )
 
         # Generate the image template if images were provided
@@ -283,23 +336,23 @@ class ListingCog(commands.Cog, name="Listings"):
 
         @discord.ui.button(label="Main", style=discord.ButtonStyle.primary)
         async def main_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_modal(AccountListingModal("Main", "main", self.CHANNELS))
+            await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("Main", "main", self.CHANNELS), ephemeral=True)
 
         @discord.ui.button(label="PvP", style=discord.ButtonStyle.danger)
         async def pvp_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_modal(AccountListingModal("PvP", "pvp", self.CHANNELS))
+            await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("PvP", "pvp", self.CHANNELS), ephemeral=True)
 
         @discord.ui.button(label="HCIM", style=discord.ButtonStyle.success)
         async def hcim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_modal(AccountListingModal("HCIM", "ironman", self.CHANNELS))
+            await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("HCIM", "ironman", self.CHANNELS), ephemeral=True)
 
         @discord.ui.button(label="Iron", style=discord.ButtonStyle.secondary)
         async def iron_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_modal(AccountListingModal("Iron", "ironman", self.CHANNELS))
+            await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("Iron", "ironman", self.CHANNELS), ephemeral=True)
 
         @discord.ui.button(label="Special", style=discord.ButtonStyle.primary)
         async def special_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.send_modal(AccountListingModal("Special", "main", self.CHANNELS))
+            await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("Special", "main", self.CHANNELS), ephemeral=True)
 
     async def handle_buy_interaction(self, interaction: discord.Interaction):
         try:
