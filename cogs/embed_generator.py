@@ -18,8 +18,10 @@ class EmbedGenerator:
             'name': (68, 255, 37),      # #44ff25 - Discord display name
             'value': (255, 232, 37),    # #ffe825 - Account value
             'description': (0, 180, 255),# #00b4ff - Account description
-            'image': (252, 0, 6),       # #fc0006 - Image location
-            'vouches': (121, 119, 121)  # #797779 - User vouches
+            'vouches': (121, 119, 121), # #797779 - User vouches
+            'image1': (252, 0, 6),      # #fc0006 - Image 1 location
+            'image2': (0, 24, 255),     # #0018ff - Image 2 location
+            'image3': (255, 222, 0)     # #ffde00 - Image 3 location
         }
 
         # Create fonts directory if it doesn't exist
@@ -130,8 +132,8 @@ class EmbedGenerator:
             print(f"Error getting vouches for user {user_id}: {e}")
             return 0
 
-    async def generate_listing_image(self, account_type, user, description, price, payment_methods, showcase_image_bytes):
-        """Generate a listing using the template and mapping system"""
+    async def generate_listing_image(self, account_type, user, description, price, payment_methods):
+        """Generate a listing using the template and mapping system (no showcase image)"""
         try:
             # Load both the clean template and its mapping
             # Handle special case for HCIM template naming
@@ -240,31 +242,7 @@ class EmbedGenerator:
                          font=desc_font, fill=(255, 255, 255),
                          spacing=TEXT_CONFIG['description']['line_spacing'])
 
-            # 5. Showcase Image
-            image_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['image'])
-            if image_zone and showcase_image_bytes:
-                showcase_io = io.BytesIO(showcase_image_bytes)
-                showcase = Image.open(showcase_io).convert('RGBA')
-                
-                # Calculate dimensions to fit within the zone while maintaining aspect ratio
-                zone_width = image_zone[2] - image_zone[0]
-                zone_height = image_zone[3] - image_zone[1]
-                
-                # Calculate scaling to fit within the zone (not exceed bounds)
-                scale_x = zone_width / showcase.width
-                scale_y = zone_height / showcase.height
-                scale_factor = min(scale_x, scale_y)  # Use smaller scale to stay within bounds
-                
-                # Resize image to fit zone
-                new_width = int(showcase.width * scale_factor)
-                new_height = int(showcase.height * scale_factor)
-                showcase = showcase.resize((new_width, new_height), Image.LANCZOS)
-                
-                # Center the image in the zone
-                x_offset = image_zone[0] + (zone_width - showcase.width) // 2
-                y_offset = image_zone[1] + (zone_height - showcase.height) // 2
-                
-                template.paste(showcase, (x_offset, y_offset))
+
 
             # 6. User Vouches
             vouch_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['vouches'])
@@ -300,6 +278,83 @@ class EmbedGenerator:
             print(f"Error generating listing image: {str(e)}")
             raise
 
-    async def send_listing(self, channel, file):
-        """Send the listing to the channel"""
-        return await channel.send(file=discord.File(file, filename="listing.png"))
+    async def generate_image_template(self, image_bytes_list):
+        """Generate an image template based on the number of images (1-3)"""
+        try:
+            num_images = len(image_bytes_list)
+            if num_images == 0:
+                return None
+            if num_images > 3:
+                num_images = 3  # Limit to 3 images
+                image_bytes_list = image_bytes_list[:3]
+            
+            # Load the appropriate template and map based on number of images
+            template_path = os.path.join(self.template_dir, "IMAGE_TEMPLATE.png")
+            map_path = os.path.join(self.template_dir, f"IMAGE_TEMPLATE_MAP{num_images}.png")
+            
+            if not os.path.exists(template_path):
+                raise FileNotFoundError(f"Image template file not found: {template_path}")
+            if not os.path.exists(map_path):
+                raise FileNotFoundError(f"Image map file not found: {map_path}")
+            
+            template = Image.open(template_path).convert('RGBA')
+            map_image = Image.open(map_path).convert('RGB')
+            
+            # Process each image based on the number of images
+            for i, image_bytes in enumerate(image_bytes_list):
+                if i >= 3:  # Safety check
+                    break
+                
+                # Determine which color mapping to use based on image position
+                if i == 0:
+                    color_key = 'image1'
+                elif i == 1:
+                    color_key = 'image2'
+                elif i == 2:
+                    color_key = 'image3'
+                else:
+                    continue
+                
+                # Find the zone for this image
+                image_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS[color_key])
+                if image_zone and image_bytes:
+                    image_io = io.BytesIO(image_bytes)
+                    image = Image.open(image_io).convert('RGBA')
+                    
+                    # Calculate dimensions to fit within the zone
+                    zone_width = image_zone[2] - image_zone[0]
+                    zone_height = image_zone[3] - image_zone[1]
+                    
+                    scale_x = zone_width / image.width
+                    scale_y = zone_height / image.height
+                    scale_factor = min(scale_x, scale_y)  # Stay within bounds
+                    
+                    new_width = int(image.width * scale_factor)
+                    new_height = int(image.height * scale_factor)
+                    image = image.resize((new_width, new_height), Image.LANCZOS)
+                    
+                    # Center the image in the zone
+                    x_offset = image_zone[0] + (zone_width - image.width) // 2
+                    y_offset = image_zone[1] + (zone_height - image.height) // 2
+                    
+                    template.paste(image, (x_offset, y_offset))
+            
+            # Convert to bytes
+            final_buffer = io.BytesIO()
+            template.save(final_buffer, format='PNG')
+            final_buffer.seek(0)
+            
+            return final_buffer
+            
+        except Exception as e:
+            print(f"Error generating image template: {str(e)}")
+            raise
+
+    async def send_listing(self, channel, account_template_file, image_template_file=None):
+        """Send the listing to the channel with both account and image templates"""
+        files = [discord.File(account_template_file, filename="account_details.png")]
+        
+        if image_template_file:
+            files.append(discord.File(image_template_file, filename="showcase_images.png"))
+        
+        return await channel.send(files=files)

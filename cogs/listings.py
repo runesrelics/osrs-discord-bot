@@ -47,49 +47,76 @@ class AccountListingModal(Modal):
             ephemeral=True
         )
 
+        # Collect multiple images (up to 3)
+        image_bytes_list = []
+        
+        await interaction.followup.send("📸 Please upload up to 3 images for your listing. Upload them one by one, or type 'done' when finished.", ephemeral=True)
+        
         def check(m):
             return (m.author == interaction.user and 
                    m.channel == interaction.channel and 
-                   m.attachments)
+                   (m.attachments or m.content.lower() == 'done'))
 
         try:
-            msg = await interaction.client.wait_for("message", timeout=30.0, check=check)
-            if msg.attachments:
-                showcase_image = await msg.attachments[0].read()
+            while len(image_bytes_list) < 3:
+                msg = await interaction.client.wait_for("message", timeout=60.0, check=check)
                 
-                # Generate the custom listing image
-                embed_generator = EmbedGenerator()
-                listing_image = await embed_generator.generate_listing_image(
-                    self.account_type,
-                    interaction.user,
-                    self.description.value,
-                    self.price.value,
-                    self.payment.value,
-                    showcase_image
-                )
-
-                # Send the listing as a plain image with buttons
-                file = discord.File(listing_image, filename="listing.png")
-                listing_msg = await listing_channel.send(file=file)
+                if msg.content.lower() == 'done':
+                    break
                 
-                # Add the listing controls
-                view = ListingView(lister=interaction.user, listing_message=listing_msg)
-                await listing_msg.edit(view=view)
-                
-                await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
-                
-                # Clean up the showcase image message
-                try:
-                    await msg.delete()
-                except:
-                    pass
+                if msg.attachments:
+                    # Process all attachments in the message
+                    for attachment in msg.attachments:
+                        if len(image_bytes_list) >= 3:
+                            break
+                        image_bytes = await attachment.read()
+                        image_bytes_list.append(image_bytes)
                     
-            else:
-                await interaction.followup.send("❌ No image was provided. Please try listing again.", ephemeral=True)
-                
+                    # Clean up the message
+                    try:
+                        await msg.delete()
+                    except:
+                        pass
+                    
+                    if len(image_bytes_list) < 3:
+                        await interaction.followup.send(f"📸 {len(msg.attachments)} image(s) uploaded! Total: {len(image_bytes_list)}/3. Upload more images or type 'done'.", ephemeral=True)
+                    else:
+                        await interaction.followup.send("📸 Maximum 3 images reached! Processing your listing...", ephemeral=True)
+                        break
+                else:
+                    await interaction.followup.send("❌ Please upload an image or type 'done'.", ephemeral=True)
+                    try:
+                        await msg.delete()
+                    except:
+                        pass
+                        
         except asyncio.TimeoutError:
-            await interaction.followup.send("❌ No image was provided in time. Please try listing again.", ephemeral=True)
+            await interaction.followup.send("❌ No images were provided in time. Please try listing again.", ephemeral=True)
             return
+
+        # Generate the account details template (no images)
+        embed_generator = EmbedGenerator()
+        account_template = await embed_generator.generate_listing_image(
+            self.account_type,
+            interaction.user,
+            self.description.value,
+            self.price.value,
+            self.payment.value
+        )
+
+        # Generate the image template if images were provided
+        image_template = None
+        if image_bytes_list:
+            image_template = await embed_generator.generate_image_template(image_bytes_list)
+
+        # Send both templates in one message
+        listing_msg = await embed_generator.send_listing(listing_channel, account_template, image_template)
+        
+        # Add the listing controls
+        view = ListingView(lister=interaction.user, listing_message=listing_msg)
+        await listing_msg.edit(view=view)
+        
+        await interaction.followup.send("✅ Your listing has been posted!", ephemeral=True)
 
 class ListingCog(commands.Cog, name="Listings"):
     """Commands for managing listings"""
