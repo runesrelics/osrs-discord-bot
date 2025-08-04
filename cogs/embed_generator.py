@@ -253,15 +253,15 @@ class EmbedGenerator:
             # 5. Left Side Details
             details_left_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['details_left'])
             if details_left_zone:
-                # Split details_left into lines and draw
-                details_left_lines = [line.strip() for line in details_left.split('\n') if line.strip()]
+                # Split details_left into lines and add bullet points
+                details_left_lines = [f"• {line.strip()}" for line in details_left.split('\n') if line.strip()]
                 self.draw_multiline_text(draw, details_left_lines, desc_font, details_left_zone, max_lines=4)
 
             # 6. Right Side Details
             details_right_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['details_right'])
             if details_right_zone:
-                # Split details_right into lines and draw
-                details_right_lines = [line.strip() for line in details_right.split('\n') if line.strip()]
+                # Split details_right into lines and add bullet points
+                details_right_lines = [f"• {line.strip()}" for line in details_right.split('\n') if line.strip()]
                 self.draw_multiline_text(draw, details_right_lines, desc_font, details_right_zone, max_lines=4)
 
 
