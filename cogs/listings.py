@@ -363,6 +363,8 @@ class AccountListingModal(Modal):
                 header_parts.append("NO BANS")
             elif ban_status == "temp ban":
                 header_parts.append("TEMP BAN")
+            elif ban_status == "expired ban":
+                header_parts.append("EXPIRED BAN")
             
             account_header = " | ".join(header_parts)
             
