@@ -673,7 +673,7 @@ class ListingCog(commands.Cog, name="Listings"):
             )
 
             from .tickets import TicketActions
-            await ticket_message.edit(view=TicketActions(ticket_message, interaction.message, buyer, lister))
+            await ticket_message.edit(view=TicketActions(ticket_message, interaction.message, account_msg, buyer, lister))
 
             await interaction.followup.send(f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True)
 

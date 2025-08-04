@@ -102,10 +102,11 @@ class TicketCog(commands.Cog):
         await ticket_actions.start_vouching(ctx.channel)
 
 class TicketActions(View):
-    def __init__(self, ticket_message, listing_message, user1, user2):
+    def __init__(self, ticket_message, listing_message, account_message, user1, user2):
         super().__init__(timeout=None)
         self.ticket_message = ticket_message
         self.listing_message = listing_message
+        self.account_message = account_message
         self.users = {user1.id: user1, user2.id: user2}
         self.completions = set()
         self.vouch_view = None
@@ -293,7 +294,7 @@ class VouchView:
 
     async def ask_listing_deletion(self):
         """Ask the lister if they want to delete or keep their listing"""
-        view = ListingDeletionView(self.listing_message, self.ticket_actions)
+        view = ListingDeletionView(self.listing_message, self.ticket_actions, self.ticket_actions.account_message)
         await self.channel.send(
             f"{self.lister.mention}, would you like to delete your listing or keep it active?",
             view=view
@@ -372,10 +373,11 @@ class VouchCommentModal(Modal):
         )
 
 class ListingDeletionView(View):
-    def __init__(self, listing_message, ticket_actions=None):
+    def __init__(self, listing_message, ticket_actions=None, account_message=None):
         super().__init__(timeout=300)  # 5 minute timeout
         self.listing_message = listing_message
         self.ticket_actions = ticket_actions
+        self.account_message = account_message
 
     @discord.ui.button(label="🗑️ Delete Listing", style=discord.ButtonStyle.danger)
     async def delete_listing(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -383,23 +385,9 @@ class ListingDeletionView(View):
             # Delete the listing message (image message with buttons)
             await self.listing_message.delete()
             
-            # Find and delete the account message in the original listing channel
-            if self.ticket_actions:
-                # Get the original listing channel from the ticket actions
-                original_channel = self.ticket_actions.listing_message.channel
-                
-                # Find the account message (the one without buttons, sent before the listing message)
-                account_message = None
-                async for msg in original_channel.history(limit=10, before=self.ticket_actions.listing_message):
-                    if (msg.author == interaction.guild.me and 
-                        msg.attachments and 
-                        "account_details.png" in [att.filename for att in msg.attachments]):
-                        account_message = msg
-                        break
-                
-                # Delete the account message if found
-                if account_message:
-                    await account_message.delete()
+            # Delete the account message if we have it
+            if self.account_message:
+                await self.account_message.delete()
             
             await interaction.response.send_message("✅ Listing has been deleted.", ephemeral=True)
         except Exception as e:
