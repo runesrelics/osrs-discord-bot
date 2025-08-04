@@ -294,7 +294,7 @@ class VouchView:
 
     async def ask_listing_deletion(self):
         """Ask the lister if they want to delete or keep their listing"""
-        view = ListingDeletionView(self.listing_message, self.ticket_actions, self.ticket_actions.account_message)
+        view = ListingDeletionView(self.listing_message, self.ticket_actions, self.ticket_actions.account_message, self.lister)
         await self.channel.send(
             f"{self.lister.mention}, would you like to delete your listing or keep it active?",
             view=view
@@ -373,14 +373,20 @@ class VouchCommentModal(Modal):
         )
 
 class ListingDeletionView(View):
-    def __init__(self, listing_message, ticket_actions=None, account_message=None):
+    def __init__(self, listing_message, ticket_actions=None, account_message=None, lister=None):
         super().__init__(timeout=300)  # 5 minute timeout
         self.listing_message = listing_message
         self.ticket_actions = ticket_actions
         self.account_message = account_message
+        self.lister = lister
 
     @discord.ui.button(label="🗑️ Delete Listing", style=discord.ButtonStyle.danger)
     async def delete_listing(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Check if the user is the lister
+        if self.lister and interaction.user.id != self.lister.id:
+            await interaction.response.send_message("❌ Only the lister can delete this listing.", ephemeral=True)
+            return
+        
         try:
             # Delete the listing message (image message with buttons)
             await self.listing_message.delete()
@@ -399,6 +405,11 @@ class ListingDeletionView(View):
 
     @discord.ui.button(label="✅ Keep Listing", style=discord.ButtonStyle.success)
     async def keep_listing(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Check if the user is the lister
+        if self.lister and interaction.user.id != self.lister.id:
+            await interaction.response.send_message("❌ Only the lister can keep this listing.", ephemeral=True)
+            return
+        
         await interaction.response.send_message("✅ Listing will remain active.", ephemeral=True)
         
         # Archive the ticket after listing decision
