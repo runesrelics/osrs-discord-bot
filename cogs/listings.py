@@ -289,7 +289,7 @@ class AccountListingModal(Modal):
             # Collect multiple images (up to 3)
             image_bytes_list = []
             
-            await interaction.followup.send("📸 Please upload up to 3 images for your listing. Upload them one by one, or type 'done' when finished.", ephemeral=True)
+            await interaction.followup.send("📸 Please upload up to 3 images for your listing.", ephemeral=True)
         
             def check(m):
                 return (m.author == interaction.user and 
