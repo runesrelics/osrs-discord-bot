@@ -635,15 +635,41 @@ class ListingCog(commands.Cog, name="Listings"):
                 topic="Trade ticket between buyer and seller."
             )
 
-            if not interaction.message or not interaction.message.embeds:
-                await interaction.followup.send("❌ Original listing message not found.", ephemeral=True)
-                return
+            # Send the listing images to the ticket for reference
+            listing_msg = None
+            account_msg = None
+            
+            # Find the listing messages in the current channel
+            async for msg in interaction.channel.history(limit=10):
+                if msg.author == interaction.guild.me and msg.attachments:
+                    if "showcase_images.png" in [att.filename for att in msg.attachments]:
+                        listing_msg = msg
+                    elif "account_details.png" in [att.filename for att in msg.attachments]:
+                        account_msg = msg
+                    if listing_msg and account_msg:
+                        break
 
-            embed_copy = interaction.message.embeds[0]
+            # Send listing reference to ticket
+            await ticket_channel.send("📋 **Listing Reference**")
+            
+            if account_msg:
+                # Re-send the account details image
+                account_attachment = account_msg.attachments[0]
+                account_file = discord.File(io.BytesIO(await account_attachment.read()), filename="account_details.png")
+                await ticket_channel.send(file=account_file)
+            
+            if listing_msg:
+                # Re-send the showcase images
+                image_attachment = listing_msg.attachments[0]
+                image_file = discord.File(io.BytesIO(await image_attachment.read()), filename="showcase_images.png")
+                await ticket_channel.send(file=image_file)
 
+            # Create the ticket message with trade actions
             ticket_message = await ticket_channel.send(
-                f"📥 New trade ticket between {buyer.mention} and {lister.mention}",
-                embed=embed_copy
+                f"📥 **New Trade Ticket**\n\n"
+                f"**Buyer:** {buyer.mention}\n"
+                f"**Seller:** {lister.mention}\n\n"
+                f"Use the buttons below to manage this trade, or type `!complete` to mark as complete."
             )
 
             from .tickets import TicketActions
