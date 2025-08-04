@@ -323,7 +323,33 @@ class ListingCog(commands.Cog, name="Listings"):
             custom_id = interaction.data.get("custom_id", "")
 
             if custom_id == "list_account":
-                view = AccountTypeSelectView("Main", "main", self.CHANNELS)
+                # Create the account type selection view with all the buttons
+                class AccountTypeSelectionView(discord.ui.View):
+                    def __init__(self, channels):
+                        super().__init__(timeout=60)
+                        self.CHANNELS = channels
+
+                    @discord.ui.button(label="Main", style=discord.ButtonStyle.primary)
+                    async def main_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                        await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("Main", "main", self.CHANNELS), ephemeral=True)
+
+                    @discord.ui.button(label="PvP", style=discord.ButtonStyle.danger)
+                    async def pvp_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                        await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("PvP", "pvp", self.CHANNELS), ephemeral=True)
+
+                    @discord.ui.button(label="HCIM", style=discord.ButtonStyle.success)
+                    async def hcim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                        await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("HCIM", "ironman", self.CHANNELS), ephemeral=True)
+
+                    @discord.ui.button(label="Iron", style=discord.ButtonStyle.secondary)
+                    async def iron_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                        await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("Iron", "ironman", self.CHANNELS), ephemeral=True)
+
+                    @discord.ui.button(label="Special", style=discord.ButtonStyle.primary)
+                    async def special_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                        await interaction.response.send_message("**Account Type:**", view=AccountTypeSelectView("Special", "main", self.CHANNELS), ephemeral=True)
+
+                view = AccountTypeSelectionView(self.CHANNELS)
                 await interaction.response.send_message(
                     "Select the type of account you want to list:",
                     view=view,
