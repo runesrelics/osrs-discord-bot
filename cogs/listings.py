@@ -45,6 +45,13 @@ def store_listing(user_id, channel_id, account_message_id, image_message_id,
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
+    # Convert BytesIO objects to bytes if needed
+    if hasattr(account_image_bytes, 'getvalue'):
+        account_image_bytes = account_image_bytes.getvalue()
+    
+    if showcase_images_bytes and hasattr(showcase_images_bytes, 'getvalue'):
+        showcase_images_bytes = showcase_images_bytes.getvalue()
+    
     cursor.execute('''
         INSERT INTO listings 
         (user_id, channel_id, account_message_id, image_message_id, 
