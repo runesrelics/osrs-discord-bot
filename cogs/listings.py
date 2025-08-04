@@ -652,14 +652,18 @@ class ListingCog(commands.Cog, name="Listings"):
             account_msg = None
             
             # Find the listing messages in the current channel
-            async for msg in interaction.channel.history(limit=10):
+            # Look for the specific listing that was clicked (the interaction.message should be the one with buttons)
+            clicked_message = interaction.message
+            
+            # Search for the account details message (should be the message before the clicked message)
+            async for msg in interaction.channel.history(limit=20, before=clicked_message):
                 if msg.author == interaction.guild.me and msg.attachments:
-                    if "showcase_images.png" in [att.filename for att in msg.attachments]:
-                        listing_msg = msg
-                    elif "account_details.png" in [att.filename for att in msg.attachments]:
+                    if "account_details.png" in [att.filename for att in msg.attachments]:
                         account_msg = msg
-                    if listing_msg and account_msg:
                         break
+            
+            # The clicked message should be the listing message with buttons
+            listing_msg = clicked_message
 
             # Send listing reference to ticket
             await ticket_channel.send("📋 **Listing Reference**")
