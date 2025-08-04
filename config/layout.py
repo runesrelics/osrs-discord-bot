@@ -4,7 +4,7 @@
 FONT_SIZES = {
     'username': 15,     # Very large for username
     'price': 30,       # Large for price
-    'description': 15  # Medium for description
+    'description': 20  # Medium for description
 }
 
 # Profile picture settings
@@ -41,5 +41,6 @@ TEXT_CONFIG = {
     }
 
 }
+
 
 
