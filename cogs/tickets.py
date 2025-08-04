@@ -380,10 +380,30 @@ class ListingDeletionView(View):
     @discord.ui.button(label="🗑️ Delete Listing", style=discord.ButtonStyle.danger)
     async def delete_listing(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
+            # Delete the listing message (image message with buttons)
             await self.listing_message.delete()
+            
+            # Find and delete the account message in the original listing channel
+            if self.ticket_actions:
+                # Get the original listing channel from the ticket actions
+                original_channel = self.ticket_actions.listing_message.channel
+                
+                # Find the account message (the one without buttons, sent before the listing message)
+                account_message = None
+                async for msg in original_channel.history(limit=10, before=self.ticket_actions.listing_message):
+                    if (msg.author == interaction.guild.me and 
+                        msg.attachments and 
+                        "account_details.png" in [att.filename for att in msg.attachments]):
+                        account_message = msg
+                        break
+                
+                # Delete the account message if found
+                if account_message:
+                    await account_message.delete()
+            
             await interaction.response.send_message("✅ Listing has been deleted.", ephemeral=True)
-        except:
-            await interaction.response.send_message("❌ Failed to delete listing.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Failed to delete listing: {str(e)}", ephemeral=True)
         
         # Archive the ticket after listing decision
         if self.ticket_actions:
