@@ -142,12 +142,12 @@ class EmbedGenerator:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Get total vouches for the user
-            cursor.execute("SELECT COUNT(*) FROM vouches WHERE user_id = ?", (user_id,))
-            vouch_count = cursor.fetchone()[0]
+            # Get total vouches for the user from the count column
+            cursor.execute("SELECT count FROM vouches WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
             
             conn.close()
-            return vouch_count
+            return result[0] if result else 0
         except Exception as e:
             print(f"Error getting vouches for user {user_id}: {e}")
             return 0
