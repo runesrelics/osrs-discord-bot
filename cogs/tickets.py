@@ -405,7 +405,7 @@ class ListingDeletionView(View):
         
         # Archive the ticket after listing decision
         if self.ticket_actions:
-            await self.ticket_actions.archive_ticket(interaction.channel, self.listing_message)
+            await self.ticket_actions.archive_ticket(interaction.channel)
 
     @discord.ui.button(label="✅ Keep Listing", style=discord.ButtonStyle.success)
     async def keep_listing(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -418,7 +418,7 @@ class ListingDeletionView(View):
         
         # Archive the ticket after listing decision
         if self.ticket_actions:
-            await self.ticket_actions.archive_ticket(interaction.channel, self.listing_message)
+            await self.ticket_actions.archive_ticket(interaction.channel)
 
 async def cleanup_bot_messages(channel, limit=100):
     async for msg in channel.history(limit=limit):
