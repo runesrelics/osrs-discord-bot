@@ -251,12 +251,14 @@ class EmailStatusSelectView(View):
         await interaction.response.send_modal(AccountListingModal(self.account_type, self.channel_type, self.CHANNELS, user_selections[user_id]))
 
 class AccountListingModal(Modal):
-    def __init__(self, account_type: str, channel_type: str, channels: dict, user_selections: dict):
+    def __init__(self, account_type: str, channel_type: str, channels: dict, user_selections: dict, is_edit_mode=False, existing_showcase_images=None):
         super().__init__(title=f"List an OSRS {account_type} Account")
         self.account_type = account_type
         self.channel_type = channel_type
         self.CHANNELS = channels
         self.user_selections = user_selections
+        self.is_edit_mode = is_edit_mode
+        self.existing_showcase_images = existing_showcase_images
         
         # Left Side Details (1 text input with multiple lines)
         self.details_left = TextInput(
@@ -298,47 +300,53 @@ class AccountListingModal(Modal):
                 await interaction.followup.send(f"❌ Error: Could not find the listing channel (ID: {target_channel_id}). Please contact an administrator.", ephemeral=True)
                 return
 
-            # Collect multiple images (up to 3)
+            # Handle image collection based on mode
             image_bytes_list = []
             
-            await interaction.followup.send("📸 Please upload up to 3 images for your listing.", ephemeral=True)
-        
-            def check(m):
-                return (m.author == interaction.user and 
-                       m.channel == interaction.channel and 
-                       (m.attachments or m.content.lower() == 'done'))
+            if self.is_edit_mode and self.existing_showcase_images:
+                # In edit mode, use existing showcase images
+                image_bytes_list = self.existing_showcase_images
+                await interaction.followup.send("📸 Using existing showcase images for your edited listing.", ephemeral=True)
+            else:
+                # Normal mode - collect new images
+                await interaction.followup.send("📸 Please upload up to 3 images for your listing.", ephemeral=True)
+            
+                def check(m):
+                    return (m.author == interaction.user and 
+                           m.channel == interaction.channel and 
+                           (m.attachments or m.content.lower() == 'done'))
 
-            try:
-                while len(image_bytes_list) < 3:
-                    msg = await interaction.client.wait_for("message", timeout=60.0, check=check)
-                    
-                    if msg.attachments:
-                        # Process all attachments in the message
-                        for attachment in msg.attachments:
-                            if len(image_bytes_list) >= 3:
-                                break
-                            image_bytes = await attachment.read()
-                            image_bytes_list.append(image_bytes)
+                try:
+                    while len(image_bytes_list) < 3:
+                        msg = await interaction.client.wait_for("message", timeout=60.0, check=check)
                         
-                        # Clean up the message
-                        try:
-                            await msg.delete()
-                        except:
-                            pass
-                        
-                        # Auto-process the listing after any image upload
-                        await interaction.followup.send(f"📸 {len(msg.attachments)} image(s) uploaded! Total: {len(image_bytes_list)}/3. Processing your listing...", ephemeral=True)
-                        break
-                    else:
-                        await interaction.followup.send("❌ Please upload an image.", ephemeral=True)
-                        try:
-                            await msg.delete()
-                        except:
-                            pass
+                        if msg.attachments:
+                            # Process all attachments in the message
+                            for attachment in msg.attachments:
+                                if len(image_bytes_list) >= 3:
+                                    break
+                                image_bytes = await attachment.read()
+                                image_bytes_list.append(image_bytes)
                             
-            except asyncio.TimeoutError:
-                await interaction.followup.send("❌ No images were provided in time. Please try listing again.", ephemeral=True)
-                return
+                            # Clean up the message
+                            try:
+                                await msg.delete()
+                            except:
+                                pass
+                            
+                            # Auto-process the listing after any image upload
+                            await interaction.followup.send(f"📸 {len(msg.attachments)} image(s) uploaded! Total: {len(image_bytes_list)}/3. Processing your listing...", ephemeral=True)
+                            break
+                        else:
+                            await interaction.followup.send("❌ Please upload an image.", ephemeral=True)
+                            try:
+                                await msg.delete()
+                            except:
+                                pass
+                                
+                except asyncio.TimeoutError:
+                    await interaction.followup.send("❌ No images were provided in time. Please try listing again.", ephemeral=True)
+                    return
 
             # Generate account header based on stored selections
             account_type = self.user_selections.get('account_type', '').lower().strip()
@@ -1101,12 +1109,19 @@ class EditConfirmationView(View):
                             user_selections[user_id] = {}
                         user_selections[user_id].update(listing_data.get('user_selections', {}))
                         
+                        # Get existing showcase images from the listing
+                        existing_showcase_images = None
+                        if listing.get('showcase_images_data'):
+                            existing_showcase_images = [listing['showcase_images_data']]
+                        
                         # Open the modal with pre-filled data
                         modal = AccountListingModal(
                             account_type=listing_data.get('account_type', 'Main'),
                             channel_type=listing_data.get('channel_type', 'main'),
                             channels=self.channels,
-                            user_selections=listing_data.get('user_selections', {})
+                            user_selections=listing_data.get('user_selections', {}),
+                            is_edit_mode=True,
+                            existing_showcase_images=existing_showcase_images
                         )
                         
                         # Pre-fill the text inputs
@@ -1264,7 +1279,7 @@ class GPListingView(View):
 
         # Add bump button
         bump_button = Button(
-            emoji="📈",
+            emoji="⬆️",
             style=discord.ButtonStyle.primary,
             custom_id=f"bump_{listing_id}" if listing_id else "bump_none"
         )
@@ -1273,7 +1288,7 @@ class GPListingView(View):
         # Add delete button
         delete_button = Button(
             emoji="❌",
-            style=discord.ButtonStyle.danger,
+            style=discord.ButtonStyle.secondary,
             custom_id=f"delete_{listing_id}" if listing_id else "delete_none"
         )
         self.add_item(delete_button)
