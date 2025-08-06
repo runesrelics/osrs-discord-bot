@@ -232,6 +232,9 @@ class VouchCog(commands.Cog):
                     user1=user1,
                     user2=user2
                 )
+                # Store reference to this view in the cog for easy access
+                if not hasattr(ctx.bot.get_cog('VouchCog'), 'vouch_requests'):
+                    ctx.bot.get_cog('VouchCog').vouch_requests = {}
             
             @discord.ui.button(label="❌ Cancel Request", style=discord.ButtonStyle.danger)
             async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -262,6 +265,11 @@ class VouchCog(commands.Cog):
         
         await ticket_channel.send(f"{admin_mentions}\n{ctx.author.mention} {user.mention}", embed=embed, view=vouch_request_view)
         
+        # Store reference to the vouch request view for easy access
+        if not hasattr(self, 'vouch_requests'):
+            self.vouch_requests = {}
+        self.vouch_requests[ticket_channel.id] = vouch_request_view
+        
         await ctx.send(
             f"✅ Vouch request ticket created: {ticket_channel.mention}",
             ephemeral=True
@@ -276,16 +284,22 @@ class VouchCog(commands.Cog):
             await ctx.send("❌ This command can only be used in vouch request ticket channels.", ephemeral=True)
             return
         
-        # Find the vouch request view in the channel
+        # Get the stored vouch request view
         vouch_request_view = None
-        async for message in ctx.channel.history(limit=50):
-            if message.components:
-                for view in message.components:
-                    if hasattr(view, 'ticket_actions') and hasattr(view, 'users'):
-                        vouch_request_view = view
+        if hasattr(self, 'vouch_requests') and ctx.channel.id in self.vouch_requests:
+            vouch_request_view = self.vouch_requests[ctx.channel.id]
+        
+        # If not found in stored references, try to find it in channel history
+        if not vouch_request_view:
+            async for message in ctx.channel.history(limit=50):
+                if message.components:
+                    for view in message.components:
+                        # Check if this is our custom VouchRequestView
+                        if hasattr(view, 'ticket_actions') and hasattr(view, 'users') and hasattr(view, 'cancel'):
+                            vouch_request_view = view
+                            break
+                    if vouch_request_view:
                         break
-                if vouch_request_view:
-                    break
         
         if not vouch_request_view:
             await ctx.send("❌ Could not find vouch request actions in this ticket.", ephemeral=True)
