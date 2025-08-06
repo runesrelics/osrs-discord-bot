@@ -305,7 +305,7 @@ class AccountListingModal(Modal):
             
             if self.is_edit_mode and self.existing_showcase_image:
                 # In edit mode, skip image collection and use existing showcase image
-                await interaction.followup.send("📸 Using existing showcase images for your edited listing.", ephemeral=True)
+                await interaction.followup.send("Editing your listing... Please wait.", ephemeral=True)
             else:
                 # Normal mode - collect new images
                 await interaction.followup.send("📸 Please upload up to 3 images for your listing.", ephemeral=True)
@@ -924,8 +924,31 @@ class ListingCog(commands.Cog, name="Listings"):
             return
         
         try:
-            # Delete the message
-            await interaction.message.delete()
+            # Check if this is a GP listing or account listing
+            listing_data = listing.get('listing_data', {})
+            is_gp_listing = 'gp_type' in listing_data
+            
+            if is_gp_listing:
+                # GP listing - only delete the current message
+                await interaction.message.delete()
+            else:
+                # Account listing - need to find and delete both messages
+                # The current message is the listing message (with buttons)
+                # We need to find the account message (should be the message before this one)
+                listing_msg = interaction.message
+                account_msg = None
+                
+                # Search for the account details message
+                async for msg in interaction.channel.history(limit=20, before=listing_msg):
+                    if msg.author == interaction.guild.me and msg.attachments:
+                        if "account_details.png" in [att.filename for att in msg.attachments]:
+                            account_msg = msg
+                            break
+                
+                # Delete both messages
+                await listing_msg.delete()
+                if account_msg:
+                    await account_msg.delete()
             
             # Mark as inactive in database
             delete_listing_from_db(listing_id)
@@ -970,9 +993,8 @@ class ListingView(View):
         delete_button = Button(
             emoji="❌",
             style=discord.ButtonStyle.secondary,
-            custom_id="delete_listing"
+            custom_id=f"delete_{listing_id}" if listing_id else "delete_none"
         )
-        delete_button.callback = self.delete_listing
         self.add_item(delete_button)
 
     async def edit_listing(self, interaction: discord.Interaction):
@@ -1059,22 +1081,7 @@ class ListingView(View):
             print(f"Error bumping listing: {str(e)}")
             await interaction.followup.send(f"❌ Error bumping listing: {str(e)}", ephemeral=True)
 
-    async def delete_listing(self, interaction: discord.Interaction):
-        if interaction.user.id != self.lister.id:
-            await interaction.response.send_message("You can't use this button.", ephemeral=True)
-            return
 
-        try:
-            # Delete from database if we have a listing_id
-            if self.listing_id:
-                delete_listing_from_db(self.listing_id)
-            
-            # Delete both messages
-            await self.listing_message.delete()
-            await self.account_message.delete()
-            await interaction.response.send_message("✅ Listing deleted.", ephemeral=True)
-        except:
-            await interaction.response.send_message("❌ Failed to delete listing.", ephemeral=True)
 
 class EditConfirmationView(View):
     def __init__(self, listing_view, channels):
