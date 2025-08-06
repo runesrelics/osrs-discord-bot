@@ -684,8 +684,14 @@ class ListingCog(commands.Cog, name="Listings"):
             # Get the tickets category
             tickets_category = interaction.guild.get_channel(1307491683461763132)
             
+            # Determine ticket name based on listing type
+            if is_gp_listing:
+                ticket_name = f"gp-trade-{buyer.name}-and-{lister.name}"
+            else:
+                ticket_name = f"account-trade-{buyer.name}-and-{lister.name}"
+            
             ticket_channel = await interaction.guild.create_text_channel(
-                name=f"ticket-{buyer.name}-and-{lister.name}",
+                name=ticket_name,
                 category=tickets_category,
                 overwrites=overwrites,
                 topic="Trade ticket between buyer and seller."
