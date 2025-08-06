@@ -19,10 +19,10 @@ class TicketCog(commands.Cog):
 
     @commands.command(name="complete")
     async def complete_trade(self, ctx):
-        """Mark the trade as complete and start the vouching process"""
+        """Mark the trade/vouch as complete and start the vouching process"""
         # Check if this is a ticket channel
-        if not ctx.channel.name.startswith("ticket-"):
-            await ctx.send("❌ This command can only be used in trade ticket channels.", ephemeral=True)
+        if not (ctx.channel.name.startswith("ticket-") or ctx.channel.name.startswith("vouch-request-")):
+            await ctx.send("❌ This command can only be used in trade or vouch request ticket channels.", ephemeral=True)
             return
         
         # Find the ticket actions view in the channel
@@ -40,31 +40,31 @@ class TicketCog(commands.Cog):
             await ctx.send("❌ Could not find trade actions in this ticket.", ephemeral=True)
             return
         
-        # Check if user is part of the trade
+        # Check if user is part of the trade/vouch
         if ctx.author.id not in ticket_actions.users:
-            await ctx.send("❌ You are not part of this trade.", ephemeral=True)
+            await ctx.send("❌ You are not part of this trade/vouch.", ephemeral=True)
             return
         
         # Check if already completed
         if ctx.author.id in ticket_actions.completions:
-            await ctx.send("❌ You have already marked this trade as complete.", ephemeral=True)
+            await ctx.send("❌ You have already marked this as complete.", ephemeral=True)
             return
         
         # Mark as complete
         ticket_actions.completions.add(ctx.author.id)
-        await ctx.send("✅ You marked the trade as complete. Waiting for other user to mark as complete", ephemeral=True)
+        await ctx.send("✅ You marked this as complete. Waiting for other user to mark as complete", ephemeral=True)
         
         # Check if both users have completed
         if len(ticket_actions.completions) == 2:
-            await ctx.channel.send("✅ Both parties have marked the trade as complete.")
+            await ctx.channel.send("✅ Both parties have marked this as complete.")
             await ticket_actions.start_vouching(ctx.channel)
 
     @commands.command(name="vouch")
     async def manual_vouch(self, ctx):
         """Manually trigger the vouching process if the modal was accidentally closed"""
         # Check if this is a ticket channel
-        if not ctx.channel.name.startswith("ticket-"):
-            await ctx.send("❌ This command can only be used in trade ticket channels.", ephemeral=True)
+        if not (ctx.channel.name.startswith("ticket-") or ctx.channel.name.startswith("vouch-request-")):
+            await ctx.send("❌ This command can only be used in trade or vouch request ticket channels.", ephemeral=True)
             return
         
         # Find the ticket actions view in the channel
@@ -82,9 +82,9 @@ class TicketCog(commands.Cog):
             await ctx.send("❌ Could not find trade actions in this ticket.", ephemeral=True)
             return
         
-        # Check if user is part of the trade
+        # Check if user is part of the trade/vouch
         if ctx.author.id not in ticket_actions.users:
-            await ctx.send("❌ You are not part of this trade.", ephemeral=True)
+            await ctx.send("❌ You are not part of this trade/vouch.", ephemeral=True)
             return
         
         # Check if vouching has already started
@@ -92,9 +92,9 @@ class TicketCog(commands.Cog):
             await ctx.send("✅ Vouching process is already active. Please use the rating buttons above.", ephemeral=True)
             return
         
-        # Check if both users have completed the trade
+        # Check if both users have completed the trade/vouch
         if len(ticket_actions.completions) != 2:
-            await ctx.send("❌ Both users must mark the trade as complete first. Use `!complete` to mark as complete.", ephemeral=True)
+            await ctx.send("❌ Both users must mark this as complete first. Use `!complete` to mark as complete.", ephemeral=True)
             return
         
         # Start vouching process
