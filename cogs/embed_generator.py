@@ -436,7 +436,13 @@ class EmbedGenerator:
         """Generate a GP listing image based on the template"""
         try:
             # Determine template based on GP type
-            template_name = f"GPLISTING_{gp_type.upper()}.png"
+            if gp_type.upper() == "BUYING":
+                template_name = "GPLISTING_BUYER.png"
+            elif gp_type.upper() == "SELLING":
+                template_name = "GPLISTING_SELLER.png"
+            else:
+                raise ValueError(f"Invalid GP type: {gp_type}")
+            
             template_path = os.path.join(self.template_dir, template_name)
             map_path = os.path.join(self.template_dir, "GPLISTING_MAP.png")
             
