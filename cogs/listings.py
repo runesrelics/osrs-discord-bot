@@ -251,14 +251,14 @@ class EmailStatusSelectView(View):
         await interaction.response.send_modal(AccountListingModal(self.account_type, self.channel_type, self.CHANNELS, user_selections[user_id]))
 
 class AccountListingModal(Modal):
-    def __init__(self, account_type: str, channel_type: str, channels: dict, user_selections: dict, is_edit_mode=False, existing_showcase_images=None):
+    def __init__(self, account_type: str, channel_type: str, channels: dict, user_selections: dict, is_edit_mode=False, existing_showcase_image=None):
         super().__init__(title=f"List an OSRS {account_type} Account")
         self.account_type = account_type
         self.channel_type = channel_type
         self.CHANNELS = channels
         self.user_selections = user_selections
         self.is_edit_mode = is_edit_mode
-        self.existing_showcase_images = existing_showcase_images
+        self.existing_showcase_image = existing_showcase_image
         
         # Left Side Details (1 text input with multiple lines)
         self.details_left = TextInput(
@@ -303,9 +303,8 @@ class AccountListingModal(Modal):
             # Handle image collection based on mode
             image_bytes_list = []
             
-            if self.is_edit_mode and self.existing_showcase_images:
-                # In edit mode, use existing showcase images
-                image_bytes_list = self.existing_showcase_images
+            if self.is_edit_mode and self.existing_showcase_image:
+                # In edit mode, skip image collection and use existing showcase image
                 await interaction.followup.send("📸 Using existing showcase images for your edited listing.", ephemeral=True)
             else:
                 # Normal mode - collect new images
@@ -406,7 +405,10 @@ class AccountListingModal(Modal):
 
                 # Generate the image template if images were provided
                 image_template = None
-                if image_bytes_list:
+                if self.is_edit_mode and self.existing_showcase_image:
+                    # In edit mode, use the existing showcase image directly
+                    image_template = self.existing_showcase_image
+                elif image_bytes_list:
                     try:
                         image_template = await embed_generator.generate_image_template(image_bytes_list)
                     except FileNotFoundError as e:
@@ -1109,10 +1111,10 @@ class EditConfirmationView(View):
                             user_selections[user_id] = {}
                         user_selections[user_id].update(listing_data.get('user_selections', {}))
                         
-                        # Get existing showcase images from the listing
-                        existing_showcase_images = None
+                        # Get existing showcase image from the listing
+                        existing_showcase_image = None
                         if listing.get('showcase_images_data'):
-                            existing_showcase_images = [listing['showcase_images_data']]
+                            existing_showcase_image = listing['showcase_images_data']
                         
                         # Open the modal with pre-filled data
                         modal = AccountListingModal(
@@ -1121,7 +1123,7 @@ class EditConfirmationView(View):
                             channels=self.channels,
                             user_selections=listing_data.get('user_selections', {}),
                             is_edit_mode=True,
-                            existing_showcase_images=existing_showcase_images
+                            existing_showcase_image=existing_showcase_image
                         )
                         
                         # Pre-fill the text inputs
