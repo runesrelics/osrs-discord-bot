@@ -2,8 +2,8 @@
 
 # Font sizes (significantly increased)
 FONT_SIZES = {
-    'username': 45,     # Very large for username
-    'price': 45,       # Large for price
+    'username': 38,     # Very large for username
+    'price': 38,       # Large for price
     'description': 45  # Medium for description
 }
 
@@ -35,7 +35,7 @@ TEXT_CONFIG = {
     },
     'account_type': {
         'position': (550, 1150),  # Position of account type label
-        'font_size': 52,          # Large font for account type
+        'font_size': 45,          # Large font for account type
         'color': (0, 255, 255),   # RGB color (cyan)
         'right_padding': 30,      # Padding from right edge
     }
@@ -73,3 +73,4 @@ GP_TEXT_CONFIG = {
     }
 
 }
+
