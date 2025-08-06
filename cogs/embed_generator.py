@@ -477,17 +477,25 @@ class EmbedGenerator:
             avatar_bytes = await self.download_avatar(user.avatar)
             if avatar_bytes:
                 avatar = Image.open(avatar_bytes).convert('RGBA')
-                avatar = avatar.resize((80, 80), Image.LANCZOS)
                 
-                # Create circular mask
-                mask = self.create_circular_mask((80, 80))
-                avatar.putalpha(mask)
-                
-                # Find PFP zone and paste
+                # Find PFP zone and resize avatar to fit the entire zone
                 pfp_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_pfp'])
                 if pfp_zone:
-                    x_offset = pfp_zone[0] + (pfp_zone[2] - pfp_zone[0] - 80) // 2
-                    y_offset = pfp_zone[1] + (pfp_zone[3] - pfp_zone[1] - 80) // 2
+                    # Calculate zone dimensions
+                    zone_width = pfp_zone[2] - pfp_zone[0]
+                    zone_height = pfp_zone[3] - pfp_zone[1]
+                    
+                    # Resize avatar to fit the entire zone (assuming it's circular)
+                    avatar_size = min(zone_width, zone_height)
+                    avatar = avatar.resize((avatar_size, avatar_size), Image.LANCZOS)
+                    
+                    # Create circular mask
+                    mask = self.create_circular_mask((avatar_size, avatar_size))
+                    avatar.putalpha(mask)
+                    
+                    # Center the avatar in the zone
+                    x_offset = pfp_zone[0] + (zone_width - avatar_size) // 2
+                    y_offset = pfp_zone[1] + (zone_height - avatar_size) // 2
                     template.paste(avatar, (x_offset, y_offset), avatar)
             
             # Draw text elements
@@ -576,9 +584,9 @@ class EmbedGenerator:
                 zone_width = vouch_zone[2] - vouch_zone[0]
                 zone_height = vouch_zone[3] - vouch_zone[1]
                 
-                # Center text both horizontally and vertically
+                # Center text horizontally, move up by 10px vertically
                 vouch_x = vouch_zone[0] + (zone_width - vouch_width) // 2
-                vouch_y = vouch_zone[1] + (zone_height - vouch_height) // 2
+                vouch_y = vouch_zone[1] + (zone_height - vouch_height) // 2 - 10
                 
                 # Ensure text stays within bounds
                 if vouch_width > zone_width:
@@ -589,7 +597,7 @@ class EmbedGenerator:
                     vouch_width = vouch_bbox[2] - vouch_bbox[0]
                     vouch_height = vouch_bbox[3] - vouch_bbox[1]
                     vouch_x = vouch_zone[0] + (zone_width - vouch_width) // 2
-                    vouch_y = vouch_zone[1] + (zone_height - vouch_height) // 2
+                    vouch_y = vouch_zone[1] + (zone_height - vouch_height) // 2 - 10
                 
                 draw.text((vouch_x, vouch_y), vouch_text, fill=GP_TEXT_CONFIG['vouches']['color'], font=vouch_font)
             
@@ -609,9 +617,9 @@ class EmbedGenerator:
                 zone_width = amount_zone[2] - amount_zone[0]
                 zone_height = amount_zone[3] - amount_zone[1]
                 
-                # Center text both horizontally and vertically
+                # Center text horizontally, move up by 10px vertically
                 amount_x = amount_zone[0] + (zone_width - amount_width) // 2
-                amount_y = amount_zone[1] + (zone_height - amount_height) // 2
+                amount_y = amount_zone[1] + (zone_height - amount_height) // 2 - 10
                 
                 # Ensure text stays within bounds
                 if amount_width > zone_width:
@@ -622,7 +630,7 @@ class EmbedGenerator:
                     amount_width = amount_bbox[2] - amount_bbox[0]
                     amount_height = amount_bbox[3] - amount_bbox[1]
                     amount_x = amount_zone[0] + (zone_width - amount_width) // 2
-                    amount_y = amount_zone[1] + (zone_height - amount_height) // 2
+                    amount_y = amount_zone[1] + (zone_height - amount_height) // 2 - 10
                 
                 draw.text((amount_x, amount_y), amount_text, fill=GP_TEXT_CONFIG['amount']['color'], font=amount_font)
             
