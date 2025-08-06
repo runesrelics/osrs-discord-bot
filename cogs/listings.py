@@ -558,6 +558,15 @@ class ListingCog(commands.Cog, name="Listings"):
 
             if custom_id.startswith("buy_"):
                 await self.handle_buy_interaction(interaction)
+            
+            elif custom_id.startswith("edit_"):
+                await self.handle_edit_interaction(interaction)
+            
+            elif custom_id.startswith("bump_"):
+                await self.handle_bump_interaction(interaction)
+            
+            elif custom_id.startswith("delete_"):
+                await self.handle_delete_interaction(interaction)
 
     async def cleanup_old_listings(self):
         """Clean up listings older than 10 days with no interactions"""
@@ -675,30 +684,52 @@ class ListingCog(commands.Cog, name="Listings"):
             # Look for the specific listing that was clicked (the interaction.message should be the one with buttons)
             clicked_message = interaction.message
             
-            # Search for the account details message (should be the message before the clicked message)
-            async for msg in interaction.channel.history(limit=20, before=clicked_message):
-                if msg.author == interaction.guild.me and msg.attachments:
-                    if "account_details.png" in [att.filename for att in msg.attachments]:
-                        account_msg = msg
+            # Check if this is a GP listing or account listing by looking at the attachments
+            is_gp_listing = False
+            if clicked_message.attachments:
+                for attachment in clicked_message.attachments:
+                    if "gp_listing.png" in attachment.filename:
+                        is_gp_listing = True
                         break
             
-            # The clicked message should be the listing message with buttons
-            listing_msg = clicked_message
+            if is_gp_listing:
+                # GP listing - only one image
+                listing_msg = clicked_message
+                
+                # Send listing reference to ticket
+                await ticket_channel.send("📋 **GP Listing Reference**")
+                
+                if listing_msg:
+                    # Re-send the GP listing image
+                    image_attachment = listing_msg.attachments[0]
+                    image_file = discord.File(io.BytesIO(await image_attachment.read()), filename="gp_listing.png")
+                    await ticket_channel.send(file=image_file)
+            else:
+                # Account listing - two images
+                # Search for the account details message (should be the message before the clicked message)
+                async for msg in interaction.channel.history(limit=20, before=clicked_message):
+                    if msg.author == interaction.guild.me and msg.attachments:
+                        if "account_details.png" in [att.filename for att in msg.attachments]:
+                            account_msg = msg
+                            break
+                
+                # The clicked message should be the listing message with buttons
+                listing_msg = clicked_message
 
-            # Send listing reference to ticket
-            await ticket_channel.send("📋 **Listing Reference**")
-            
-            if account_msg:
-                # Re-send the account details image
-                account_attachment = account_msg.attachments[0]
-                account_file = discord.File(io.BytesIO(await account_attachment.read()), filename="account_details.png")
-                await ticket_channel.send(file=account_file)
-            
-            if listing_msg:
-                # Re-send the showcase images
-                image_attachment = listing_msg.attachments[0]
-                image_file = discord.File(io.BytesIO(await image_attachment.read()), filename="showcase_images.png")
-                await ticket_channel.send(file=image_file)
+                # Send listing reference to ticket
+                await ticket_channel.send("📋 **Listing Reference**")
+                
+                if account_msg:
+                    # Re-send the account details image
+                    account_attachment = account_msg.attachments[0]
+                    account_file = discord.File(io.BytesIO(await account_attachment.read()), filename="account_details.png")
+                    await ticket_channel.send(file=account_file)
+                
+                if listing_msg:
+                    # Re-send the showcase images
+                    image_attachment = listing_msg.attachments[0]
+                    image_file = discord.File(io.BytesIO(await image_attachment.read()), filename="showcase_images.png")
+                    await ticket_channel.send(file=image_file)
 
             # Create the ticket message with trade actions
             ticket_message = await ticket_channel.send(
@@ -709,12 +740,190 @@ class ListingCog(commands.Cog, name="Listings"):
             )
 
             from .tickets import TicketActions
-            await ticket_message.edit(view=TicketActions(ticket_message, interaction.message, account_msg, buyer, lister))
+            if is_gp_listing:
+                # For GP listings, both listing and account messages are the same
+                await ticket_message.edit(view=TicketActions(ticket_message, listing_msg, listing_msg, buyer, lister))
+            else:
+                # For account listings, use separate listing and account messages
+                await ticket_message.edit(view=TicketActions(ticket_message, listing_msg, account_msg, buyer, lister))
 
             await interaction.followup.send(f"📨 Ticket created: {ticket_channel.mention}", ephemeral=True)
 
         except Exception as e:
             await interaction.followup.send(f"❌ Failed to create ticket: `{e}`", ephemeral=True)
+
+    async def handle_edit_interaction(self, interaction: discord.Interaction):
+        """Handle edit button interactions for both account and GP listings"""
+        try:
+            listing_id = int(interaction.data["custom_id"].split("_")[1])
+        except ValueError:
+            await interaction.response.send_message("❌ Invalid listing ID.", ephemeral=True)
+            return
+        
+        # Get the listing data
+        listing = get_listing(listing_id)
+        if not listing:
+            await interaction.response.send_message("❌ Could not find listing data.", ephemeral=True)
+            return
+        
+        # Check if user is the lister
+        if interaction.user.id != listing['user_id']:
+            await interaction.response.send_message("❌ Only the lister can edit this listing.", ephemeral=True)
+            return
+        
+        # Check if this is a GP listing
+        listing_data = listing.get('listing_data', {})
+        is_gp_listing = 'gp_type' in listing_data
+        
+        if is_gp_listing:
+            # Handle GP listing edit
+            await self.handle_gp_edit(interaction, listing)
+        else:
+            # Handle account listing edit
+            await self.handle_account_edit(interaction, listing)
+
+    async def handle_gp_edit(self, interaction: discord.Interaction, listing):
+        """Handle GP listing edit"""
+        try:
+            listing_data = listing.get('listing_data', {})
+            
+            # Delete old message
+            await interaction.message.delete()
+            
+            # Delete from database
+            delete_listing_from_db(listing['id'])
+            
+            # Open the modal with pre-filled data
+            modal = GPListingModal(
+                gp_type=listing_data.get('gp_type', 'BUYING'),
+                channels=self.CHANNELS
+            )
+            
+            # Pre-fill the text inputs
+            modal.price.default = listing_data.get('price', '')
+            modal.amount.default = listing_data.get('amount', '')
+            modal.payment_method.default = listing_data.get('payment_method', '')
+            
+            await interaction.response.send_modal(modal)
+            
+        except Exception as e:
+            print(f"Error editing GP listing: {str(e)}")
+            await interaction.response.send_message(f"❌ Error editing GP listing: {str(e)}", ephemeral=True)
+
+    async def handle_account_edit(self, interaction: discord.Interaction, listing):
+        """Handle account listing edit"""
+        # This would be similar to the existing account edit logic
+        await interaction.response.send_message("Account editing not implemented yet.", ephemeral=True)
+
+    async def handle_bump_interaction(self, interaction: discord.Interaction):
+        """Handle bump button interactions for both account and GP listings"""
+        try:
+            listing_id = int(interaction.data["custom_id"].split("_")[1])
+        except ValueError:
+            await interaction.response.send_message("❌ Invalid listing ID.", ephemeral=True)
+            return
+        
+        # Get the listing data
+        listing = get_listing(listing_id)
+        if not listing:
+            await interaction.response.send_message("❌ Could not find listing data.", ephemeral=True)
+            return
+        
+        # Check if user is the lister
+        if interaction.user.id != listing['user_id']:
+            await interaction.response.send_message("❌ Only the lister can bump this listing.", ephemeral=True)
+            return
+        
+        # Check if can bump (48-hour cooldown)
+        if not can_bump_listing(listing_id):
+            await interaction.response.send_message("❌ You can only bump your listing once every 48 hours.", ephemeral=True)
+            return
+        
+        try:
+            # Delete old message
+            await interaction.message.delete()
+            
+            # Re-send the listing using stored image data
+            if listing.get('account_image_data'):
+                image_bytes = listing['account_image_data']
+                
+                # Determine if this is a GP listing
+                listing_data = listing.get('listing_data', {})
+                is_gp_listing = 'gp_type' in listing_data
+                
+                if is_gp_listing:
+                    # GP listing
+                    filename = "gp_listing.png"
+                    view_class = GPListingView
+                else:
+                    # Account listing
+                    filename = "account_details.png"
+                    view_class = ListingView
+                
+                image_file = discord.File(io.BytesIO(image_bytes), filename=filename)
+                new_listing_msg = await interaction.channel.send(file=image_file)
+                
+                # Add the listing controls to the new message
+                if is_gp_listing:
+                    view = view_class(
+                        lister=interaction.user,
+                        listing_message=new_listing_msg,
+                        listing_id=listing_id,
+                        channels=self.CHANNELS
+                    )
+                else:
+                    # For account listings, we need both messages
+                    view = view_class(
+                        lister=interaction.user,
+                        listing_message=new_listing_msg,
+                        account_message=new_listing_msg,  # Simplified for now
+                        listing_id=listing_id
+                    )
+                
+                await new_listing_msg.edit(view=view)
+                
+                # Update database
+                update_listing_interaction(listing_id)
+                
+                await interaction.response.send_message("✅ Your listing has been bumped!", ephemeral=True)
+            else:
+                await interaction.response.send_message("❌ Could not retrieve listing image data.", ephemeral=True)
+                
+        except Exception as e:
+            print(f"Error bumping listing: {str(e)}")
+            await interaction.response.send_message(f"❌ Error bumping listing: {str(e)}", ephemeral=True)
+
+    async def handle_delete_interaction(self, interaction: discord.Interaction):
+        """Handle delete button interactions for both account and GP listings"""
+        try:
+            listing_id = int(interaction.data["custom_id"].split("_")[1])
+        except ValueError:
+            await interaction.response.send_message("❌ Invalid listing ID.", ephemeral=True)
+            return
+        
+        # Get the listing data
+        listing = get_listing(listing_id)
+        if not listing:
+            await interaction.response.send_message("❌ Could not find listing data.", ephemeral=True)
+            return
+        
+        # Check if user is the lister
+        if interaction.user.id != listing['user_id']:
+            await interaction.response.send_message("❌ Only the lister can delete this listing.", ephemeral=True)
+            return
+        
+        try:
+            # Delete the message
+            await interaction.message.delete()
+            
+            # Mark as inactive in database
+            delete_listing_from_db(listing_id)
+            
+            await interaction.response.send_message("✅ Listing has been deleted.", ephemeral=True)
+            
+        except Exception as e:
+            print(f"Error deleting listing: {str(e)}")
+            await interaction.response.send_message(f"❌ Error deleting listing: {str(e)}", ephemeral=True)
 
 class ListingView(View):
     def __init__(self, lister: discord.User, listing_message: discord.Message, account_message: discord.Message, listing_id: int = None):
@@ -1037,124 +1246,37 @@ class GPListingView(View):
         self.listing_id = listing_id
         self.channels = channels or {}
 
-    @discord.ui.button(label="💼 Trade", style=discord.ButtonStyle.primary)
-    async def trade(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id == self.lister.id:
-            await interaction.response.send_message("❌ You cannot trade with yourself.", ephemeral=True)
-            return
-        
-        # Create ticket channel
-        ticket_channel = await interaction.guild.create_text_channel(
-            f"ticket-{interaction.user.name}-{self.lister.name}",
-            category=interaction.channel.category
+        # Add trade button with custom_id for proper handling
+        trade_button = Button(
+            label="TRADE",
+            style=discord.ButtonStyle.success,
+            custom_id=f"buy_{lister.id}"
         )
-        
-        # Post the GP listing in the ticket
-        await ticket_channel.send(f"💼 **GP Trade Started** 💼\n\n{interaction.user.mention} wants to trade with {self.lister.mention}")
-        
-        # Send the GP listing image to the ticket
-        if self.listing_id:
-            listing = get_listing(self.listing_id)
-            if listing and listing.get('account_image_data'):
-                gp_image_bytes = listing['account_image_data']
-                gp_file = discord.File(io.BytesIO(gp_image_bytes), filename="gp_listing.png")
-                await ticket_channel.send(file=gp_file)
-        
-        # Add trade actions
-        ticket_actions = TicketActions(
-            ticket_message=ticket_channel,
-            listing_message=self.listing_message,
-            account_message=self.listing_message,  # For GP, both are the same
-            user1=interaction.user,
-            user2=self.lister
+        self.add_item(trade_button)
+
+        # Add edit button
+        edit_button = Button(
+            emoji="✏️",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"edit_{listing_id}" if listing_id else "edit_none"
         )
-        await ticket_channel.send("Choose an action:", view=ticket_actions)
-        
-        await interaction.response.send_message(f"✅ Trade ticket created: {ticket_channel.mention}", ephemeral=True)
+        self.add_item(edit_button)
 
-    @discord.ui.button(label="✏️ Edit", style=discord.ButtonStyle.secondary)
-    async def edit(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.lister.id:
-            await interaction.response.send_message("❌ Only the lister can edit this listing.", ephemeral=True)
-            return
-        
-        # Show confirmation
-        view = GPEditConfirmationView(self, self.channels)
-        await interaction.response.send_message("Are you sure you want to edit this GP listing?", view=view, ephemeral=True)
+        # Add bump button
+        bump_button = Button(
+            emoji="📈",
+            style=discord.ButtonStyle.primary,
+            custom_id=f"bump_{listing_id}" if listing_id else "bump_none"
+        )
+        self.add_item(bump_button)
 
-    @discord.ui.button(label="📈 Bump", style=discord.ButtonStyle.success)
-    async def bump(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.lister.id:
-            await interaction.response.send_message("❌ Only the lister can bump this listing.", ephemeral=True)
-            return
-        
-        if not self.listing_id:
-            await interaction.response.send_message("❌ Could not find listing data for bumping.", ephemeral=True)
-            return
-        
-        # Check if can bump (48-hour cooldown)
-        if not can_bump_listing(self.listing_id):
-            await interaction.response.send_message("❌ You can only bump your listing once every 48 hours.", ephemeral=True)
-            return
-        
-        try:
-            # Get stored listing data
-            listing = get_listing(self.listing_id)
-            if not listing:
-                await interaction.response.send_message("❌ Could not find listing data for bumping.", ephemeral=True)
-                return
-            
-            # Delete old message
-            await self.listing_message.delete()
-            
-            # Re-send the listing using stored image data
-            if listing.get('account_image_data'):
-                gp_image_bytes = listing['account_image_data']
-                gp_file = discord.File(io.BytesIO(gp_image_bytes), filename="gp_listing.png")
-                new_listing_msg = await interaction.channel.send(file=gp_file)
-                
-                # Update the listing message reference
-                self.listing_message = new_listing_msg
-                
-                # Add the listing controls to the new message
-                view = GPListingView(
-                    lister=self.lister,
-                    listing_message=new_listing_msg,
-                    listing_id=self.listing_id,
-                    channels=self.channels
-                )
-                await new_listing_msg.edit(view=view)
-                
-                # Update database
-                update_listing_interaction(self.listing_id)
-                
-                await interaction.response.send_message("✅ Your GP listing has been bumped!", ephemeral=True)
-            else:
-                await interaction.response.send_message("❌ Could not retrieve listing image data.", ephemeral=True)
-                
-        except Exception as e:
-            print(f"Error bumping GP listing: {str(e)}")
-            await interaction.response.send_message(f"❌ Error bumping listing: {str(e)}", ephemeral=True)
-
-    @discord.ui.button(label="❌ Delete", style=discord.ButtonStyle.danger)
-    async def delete(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.lister.id:
-            await interaction.response.send_message("❌ Only the lister can delete this listing.", ephemeral=True)
-            return
-        
-        try:
-            # Delete the message
-            await self.listing_message.delete()
-            
-            # Mark as inactive in database
-            if self.listing_id:
-                delete_listing_from_db(self.listing_id)
-            
-            await interaction.response.send_message("✅ GP listing has been deleted.", ephemeral=True)
-            
-        except Exception as e:
-            print(f"Error deleting GP listing: {str(e)}")
-            await interaction.response.send_message(f"❌ Error deleting listing: {str(e)}", ephemeral=True)
+        # Add delete button
+        delete_button = Button(
+            emoji="❌",
+            style=discord.ButtonStyle.danger,
+            custom_id=f"delete_{listing_id}" if listing_id else "delete_none"
+        )
+        self.add_item(delete_button)
 
 class GPEditConfirmationView(View):
     def __init__(self, gp_listing_view, channels):
