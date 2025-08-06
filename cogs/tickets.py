@@ -289,7 +289,16 @@ class VouchView:
 
     async def ask_listing_deletion(self):
         """Ask the lister if they want to delete or keep their listing"""
-        view = ListingDeletionView(self.listing_message, self.ticket_actions, self.ticket_actions.account_message, self.lister)
+        # Check if this is a GP listing by checking if listing_message and account_message are the same
+        is_gp_listing = (self.listing_message == self.ticket_actions.account_message)
+        
+        if is_gp_listing:
+            # For GP listings, only pass the listing_message (don't pass account_message to avoid double deletion)
+            view = ListingDeletionView(self.listing_message, self.ticket_actions, None, self.lister)
+        else:
+            # For account listings, pass both messages
+            view = ListingDeletionView(self.listing_message, self.ticket_actions, self.ticket_actions.account_message, self.lister)
+        
         await self.channel.send(
             f"{self.lister.mention}, would you like to delete your listing or keep it active?",
             view=view
@@ -386,8 +395,8 @@ class ListingDeletionView(View):
             # Delete the listing message (image message with buttons)
             await self.listing_message.delete()
             
-            # Delete the account message if we have it
-            if self.account_message:
+            # Delete the account message if we have it (only for account listings)
+            if self.account_message and self.account_message != self.listing_message:
                 await self.account_message.delete()
             
             await interaction.response.send_message("✅ Listing has been deleted.", ephemeral=True)
