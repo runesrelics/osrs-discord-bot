@@ -681,8 +681,12 @@ class ListingCog(commands.Cog, name="Listings"):
                 overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
         try:
+            # Get the tickets category
+            tickets_category = interaction.guild.get_channel(1307491683461763132)
+            
             ticket_channel = await interaction.guild.create_text_channel(
                 name=f"ticket-{buyer.name}-and-{lister.name}",
+                category=tickets_category,
                 overwrites=overwrites,
                 topic="Trade ticket between buyer and seller."
             )

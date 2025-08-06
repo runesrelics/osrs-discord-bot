@@ -208,8 +208,12 @@ class VouchCog(commands.Cog):
         if mod_role:
             overwrites[mod_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
         
+        # Get the tickets category
+        tickets_category = ctx.guild.get_channel(1307491683461763132)
+        
         ticket_channel = await ctx.guild.create_text_channel(
             f"vouch-request-{ctx.author.name}-{user.name}",
+            category=tickets_category,
             overwrites=overwrites,
             topic="Vouch request ticket between users."
         )
