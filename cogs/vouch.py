@@ -172,10 +172,15 @@ class VouchCog(commands.Cog):
                 except Exception as e:
                     await interaction.response.send_message(f"❌ Error adding vouch: {str(e)}", ephemeral=True)
 
-        # Add cog reference to modal
-        modal = AddVouchModal()
-        modal.cog = self
-        await ctx.send_modal(modal)
+        # For hybrid commands, we need to check if it's an interaction or context
+        if ctx.interaction:
+            # It's a slash command
+            modal = AddVouchModal()
+            modal.cog = self
+            await ctx.interaction.response.send_modal(modal)
+        else:
+            # It's a text command, send instructions
+            await ctx.send("❌ This command must be used as a slash command. Use `/addvouch` instead of `!addvouch`.")
 
     @commands.hybrid_command(name="vouchreq", description="Request a vouch with another user")
     async def vouchreq(self, ctx):
@@ -286,9 +291,14 @@ class VouchCog(commands.Cog):
                 except Exception as e:
                     await interaction.response.send_message(f"❌ Error creating vouch request: {str(e)}", ephemeral=True)
 
-        # Send the modal
-        modal = VouchRequestModal()
-        await ctx.send_modal(modal)
+        # For hybrid commands, we need to check if it's an interaction or context
+        if ctx.interaction:
+            # It's a slash command
+            modal = VouchRequestModal()
+            await ctx.interaction.response.send_modal(modal)
+        else:
+            # It's a text command, send instructions
+            await ctx.send("❌ This command must be used as a slash command. Use `/vouchreq` instead of `!vouchreq`.")
 
 async def setup(bot):
     await bot.add_cog(VouchCog(bot))
