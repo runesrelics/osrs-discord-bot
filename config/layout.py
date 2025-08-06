@@ -40,3 +40,35 @@ TEXT_CONFIG = {
         'right_padding': 30,      # Padding from right edge
     }
 }
+
+# GP Listing specific configurations
+GP_FONT_SIZES = {
+    'username': 45,      # Discord server name
+    'price': 48,         # Price per M
+    'vouches': 48,       # Vouch count
+    'amount': 55,        # Amount (e.g., 2B)
+    'payment': 55        # Payment method
+}
+
+GP_TEXT_CONFIG = {
+    'username': {
+        'font_size': GP_FONT_SIZES['username'],
+        'color': (255, 255, 255),  # White
+    },
+    'price': {
+        'font_size': GP_FONT_SIZES['price'],
+        'color': (255, 255, 255),  # White
+    },
+    'vouches': {
+        'font_size': GP_FONT_SIZES['vouches'],
+        'color': (255, 255, 255),  # White
+    },
+    'amount': {
+        'font_size': GP_FONT_SIZES['amount'],
+        'color': (255, 255, 255),  # White
+    },
+    'payment': {
+        'font_size': GP_FONT_SIZES['payment'],
+        'color': (255, 255, 255),  # White
+    }
+}
