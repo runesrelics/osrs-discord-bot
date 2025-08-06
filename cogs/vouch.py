@@ -184,107 +184,80 @@ class VouchCog(commands.Cog):
             await ctx.send("❌ This command must be used as a slash command. Use `/addvouch` instead of `!addvouch`.")
 
     @commands.hybrid_command(name="vouchreq", description="Request a vouch with another user")
-    async def vouchreq(self, ctx):
-        # For hybrid commands, we need to check if it's an interaction or context
-        if ctx.interaction:
-            # It's a slash command - prompt for user mention
-            await ctx.interaction.response.send_message("Please mention the user you want to vouch with (e.g., @username):", ephemeral=True)
-            
-            # Set up a check for the next message from the user
-            def check(m):
-                return m.author == ctx.author and m.channel == ctx.channel
-            
-            try:
-                # Wait for the user's response
-                message = await self.bot.wait_for('message', timeout=30.0, check=check)
-                
-                # Parse the mentioned user
-                if not message.mentions:
-                    await ctx.followup.send("❌ Please mention a user with @username", ephemeral=True)
-                    return
-                
-                user = message.mentions[0]
-                
-                # Check if user is trying to vouch with themselves
-                if user.id == ctx.author.id:
-                    await ctx.followup.send("❌ You cannot vouch with yourself.", ephemeral=True)
-                    return
-                
-                # Create vouch request ticket
-                category = ctx.guild.get_channel(1395791949969231945)  # Archived tickets category
-                if not category:
-                    await ctx.followup.send("❌ Could not find tickets category.", ephemeral=True)
-                    return
-                
-                # Create ticket channel
-                overwrites = {
-                    ctx.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-                    ctx.author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
-                    user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
-                    ctx.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True)
-                }
-                
-                # Add admin and moderator roles
-                admin_role = discord.utils.get(ctx.guild.roles, name="Admin")
-                mod_role = discord.utils.get(ctx.guild.roles, name="Moderator")
-                
-                if admin_role:
-                    overwrites[admin_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-                if mod_role:
-                    overwrites[mod_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-                
-                ticket_channel = await ctx.guild.create_text_channel(
-                    f"vouch-request-{ctx.author.name}-{user.name}",
-                    category=category,
-                    overwrites=overwrites
-                )
-                
-                # Create TicketActions view for vouch request
-                from cogs.tickets import TicketActions
-                
-                # Create a dummy message for the ticket actions (since there's no listing)
-                dummy_message = type('obj', (object,), {'id': 0})()
-                
-                # Create ticket actions view
-                ticket_actions = TicketActions(
-                    ticket_message=dummy_message,
-                    listing_message=dummy_message,
-                    account_message=dummy_message,
-                    user1=ctx.author,
-                    user2=user
-                )
-                
-                # Send initial message with ticket actions
-                embed = discord.Embed(
-                    title="🤝 Vouch Request",
-                    description=f"**{ctx.author.display_name}** has requested to vouch with **{user.display_name}**",
-                    color=discord.Color.blue()
-                )
-                embed.add_field(name="Requested by", value=ctx.author.mention, inline=True)
-                embed.add_field(name="Requested with", value=user.mention, inline=True)
-                embed.set_footer(text=f"Use !complete when both users are ready to complete the vouch")
-                
-                # Tag admin and moderator roles
-                admin_mentions = ""
-                if admin_role:
-                    admin_mentions += f"{admin_role.mention} "
-                if mod_role:
-                    admin_mentions += f"{mod_role.mention}"
-                
-                await ticket_channel.send(f"{admin_mentions}\n{ctx.author.mention} {user.mention}", embed=embed, view=ticket_actions)
-                
-                await ctx.followup.send(
-                    f"✅ Vouch request ticket created: {ticket_channel.mention}",
-                    ephemeral=True
-                )
-                
-            except asyncio.TimeoutError:
-                await ctx.followup.send("❌ Timed out. Please try again.", ephemeral=True)
-            except Exception as e:
-                await ctx.followup.send(f"❌ Error creating vouch request: {str(e)}", ephemeral=True)
-        else:
-            # It's a text command, send instructions
-            await ctx.send("❌ This command must be used as a slash command. Use `/vouchreq` instead of `!vouchreq`.")
+    async def vouchreq(self, ctx, user: discord.Member):
+        """Request a vouch with another user"""
+        # Check if user is trying to vouch with themselves
+        if user.id == ctx.author.id:
+            await ctx.send("❌ You cannot vouch with yourself.", ephemeral=True)
+            return
+        
+        # Create vouch request ticket
+        category = ctx.guild.get_channel(1395791949969231945)  # Archived tickets category
+        if not category:
+            await ctx.send("❌ Could not find tickets category.", ephemeral=True)
+            return
+        
+        # Create ticket channel
+        overwrites = {
+            ctx.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            ctx.author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+            user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+            ctx.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True)
+        }
+        
+        # Add admin and moderator roles
+        admin_role = discord.utils.get(ctx.guild.roles, name="Admin")
+        mod_role = discord.utils.get(ctx.guild.roles, name="Moderator")
+        
+        if admin_role:
+            overwrites[admin_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        if mod_role:
+            overwrites[mod_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        
+        ticket_channel = await ctx.guild.create_text_channel(
+            f"vouch-request-{ctx.author.name}-{user.name}",
+            category=category,
+            overwrites=overwrites
+        )
+        
+        # Create TicketActions view for vouch request
+        from cogs.tickets import TicketActions
+        
+        # Create a dummy message for the ticket actions (since there's no listing)
+        dummy_message = type('obj', (object,), {'id': 0})()
+        
+        # Create ticket actions view
+        ticket_actions = TicketActions(
+            ticket_message=dummy_message,
+            listing_message=dummy_message,
+            account_message=dummy_message,
+            user1=ctx.author,
+            user2=user
+        )
+        
+        # Send initial message with ticket actions
+        embed = discord.Embed(
+            title="🤝 Vouch Request",
+            description=f"**{ctx.author.display_name}** has requested to vouch with **{user.display_name}**",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="Requested by", value=ctx.author.mention, inline=True)
+        embed.add_field(name="Requested with", value=user.mention, inline=True)
+        embed.set_footer(text=f"Use !complete when both users are ready to complete the vouch")
+        
+        # Tag admin and moderator roles
+        admin_mentions = ""
+        if admin_role:
+            admin_mentions += f"{admin_role.mention} "
+        if mod_role:
+            admin_mentions += f"{mod_role.mention}"
+        
+        await ticket_channel.send(f"{admin_mentions}\n{ctx.author.mention} {user.mention}", embed=embed, view=ticket_actions)
+        
+        await ctx.send(
+            f"✅ Vouch request ticket created: {ticket_channel.mention}",
+            ephemeral=True
+        )
 
     @commands.command(name="sync_commands")
     @commands.has_permissions(administrator=True)
