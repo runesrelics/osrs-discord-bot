@@ -43,11 +43,11 @@ TEXT_CONFIG = {
 
 # GP Listing specific configurations
 GP_FONT_SIZES = {
-    'username': 45,      # Discord server name
-    'price': 48,         # Price per M
-    'vouches': 48,       # Vouch count
-    'amount': 55,        # Amount (e.g., 2B)
-    'payment': 55        # Payment method
+    'username': 32,      # Discord server name (reduced to fit in bounds)
+    'price': 36,         # Price per M (reduced)
+    'vouches': 36,       # Vouch count (reduced)
+    'amount': 42,        # Amount (e.g., 2B) (reduced)
+    'payment': 42        # Payment method (reduced)
 }
 
 GP_TEXT_CONFIG = {
