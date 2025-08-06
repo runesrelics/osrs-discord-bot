@@ -4,7 +4,7 @@
 FONT_SIZES = {
     'username': 38,     # Very large for username
     'price': 38,       # Large for price
-    'description': 45  # Medium for description
+    'description': 40  # Medium for description
 }
 
 # Profile picture settings
@@ -73,4 +73,5 @@ GP_TEXT_CONFIG = {
     }
 
 }
+
 
