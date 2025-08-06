@@ -2,9 +2,9 @@
 
 # Font sizes (significantly increased)
 FONT_SIZES = {
-    'username': 72,     # Very large for username
-    'price': 64,       # Large for price
-    'description': 52  # Medium for description
+    'username': 45,     # Very large for username
+    'price': 45,       # Large for price
+    'description': 45  # Medium for description
 }
 
 # Profile picture settings
@@ -71,4 +71,5 @@ GP_TEXT_CONFIG = {
         'font_size': GP_FONT_SIZES['payment'],
         'color': (255, 255, 255),  # White
     }
+
 }
