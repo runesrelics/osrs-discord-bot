@@ -5,7 +5,7 @@ import aiohttp
 import os
 import unicodedata
 import sqlite3
-from config.layout import TEXT_CONFIG, PFP_CONFIG  # Removed SHOWCASE_CONFIG from import
+from config.layout import TEXT_CONFIG, PFP_CONFIG, GP_TEXT_CONFIG  # Removed SHOWCASE_CONFIG from import
 
 class EmbedGenerator:
     def __init__(self):
@@ -493,70 +493,171 @@ class EmbedGenerator:
             # Draw text elements
             draw = ImageDraw.Draw(template)
             
-            # User server name (100% larger than account listings)
+            # User server name
             name_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_name'])
             if name_zone:
                 name_text = self.normalize_text(user.display_name)
-                name_font = ImageFont.truetype(self.font_path, 72) if os.path.exists(self.font_path) else ImageFont.load_default()
+                name_font_size = GP_TEXT_CONFIG['username']['font_size']
+                name_font = ImageFont.truetype(self.font_path, name_font_size) if os.path.exists(self.font_path) else ImageFont.load_default()
+                
+                # Get text dimensions
                 name_bbox = name_font.getbbox(name_text)
                 name_width = name_bbox[2] - name_bbox[0]
                 name_height = name_bbox[3] - name_bbox[1]
                 
-                name_x = name_zone[0] + (name_zone[2] - name_zone[0] - name_width) // 2
-                name_y = name_zone[1] + (name_zone[3] - name_zone[1] - name_height) // 2
-                draw.text((name_x, name_y), name_text, fill=(255, 255, 255), font=name_font)
+                # Calculate zone dimensions
+                zone_width = name_zone[2] - name_zone[0]
+                zone_height = name_zone[3] - name_zone[1]
+                
+                # Center text both horizontally and vertically
+                name_x = name_zone[0] + (zone_width - name_width) // 2
+                name_y = name_zone[1] + (zone_height - name_height) // 2
+                
+                # Ensure text stays within bounds
+                if name_width > zone_width:
+                    # Scale down font if text is too wide
+                    scale_factor = zone_width / name_width * 0.9  # 90% to leave some margin
+                    new_font_size = int(name_font_size * scale_factor)
+                    name_font = ImageFont.truetype(self.font_path, new_font_size) if os.path.exists(self.font_path) else ImageFont.load_default()
+                    name_bbox = name_font.getbbox(name_text)
+                    name_width = name_bbox[2] - name_bbox[0]
+                    name_height = name_bbox[3] - name_bbox[1]
+                    name_x = name_zone[0] + (zone_width - name_width) // 2
+                    name_y = name_zone[1] + (zone_height - name_height) // 2
+                
+                draw.text((name_x, name_y), name_text, fill=GP_TEXT_CONFIG['username']['color'], font=name_font)
             
             # Price
             price_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_price'])
             if price_zone:
                 price_text = f"${price}"  # Only show the price value
-                price_font = ImageFont.truetype(self.font_path, 48) if os.path.exists(self.font_path) else ImageFont.load_default()
+                price_font_size = GP_TEXT_CONFIG['price']['font_size']
+                price_font = ImageFont.truetype(self.font_path, price_font_size) if os.path.exists(self.font_path) else ImageFont.load_default()
+                
+                # Get text dimensions
                 price_bbox = price_font.getbbox(price_text)
                 price_width = price_bbox[2] - price_bbox[0]
                 price_height = price_bbox[3] - price_bbox[1]
                 
-                price_x = price_zone[0] + (price_zone[2] - price_zone[0] - price_width) // 2
-                price_y = price_zone[1] + (price_zone[3] - price_zone[1] - price_height) // 2
-                draw.text((price_x, price_y), price_text, fill=(255, 255, 255), font=price_font)
+                # Calculate zone dimensions
+                zone_width = price_zone[2] - price_zone[0]
+                zone_height = price_zone[3] - price_zone[1]
+                
+                # Center text both horizontally and vertically
+                price_x = price_zone[0] + (zone_width - price_width) // 2
+                price_y = price_zone[1] + (zone_height - price_height) // 2
+                
+                # Ensure text stays within bounds
+                if price_width > zone_width:
+                    scale_factor = zone_width / price_width * 0.9
+                    new_font_size = int(price_font_size * scale_factor)
+                    price_font = ImageFont.truetype(self.font_path, new_font_size) if os.path.exists(self.font_path) else ImageFont.load_default()
+                    price_bbox = price_font.getbbox(price_text)
+                    price_width = price_bbox[2] - price_bbox[0]
+                    price_height = price_bbox[3] - price_bbox[1]
+                    price_x = price_zone[0] + (zone_width - price_width) // 2
+                    price_y = price_zone[1] + (zone_height - price_height) // 2
+                
+                draw.text((price_x, price_y), price_text, fill=GP_TEXT_CONFIG['price']['color'], font=price_font)
             
             # Vouch count (just the number)
             vouch_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_vouches'])
             if vouch_zone:
                 vouch_text = str(vouches)
-                vouch_font = ImageFont.truetype(self.font_path, 36) if os.path.exists(self.font_path) else ImageFont.load_default()
+                vouch_font_size = GP_TEXT_CONFIG['vouches']['font_size']
+                vouch_font = ImageFont.truetype(self.font_path, vouch_font_size) if os.path.exists(self.font_path) else ImageFont.load_default()
+                
+                # Get text dimensions
                 vouch_bbox = vouch_font.getbbox(vouch_text)
                 vouch_width = vouch_bbox[2] - vouch_bbox[0]
                 vouch_height = vouch_bbox[3] - vouch_bbox[1]
                 
-                vouch_x = vouch_zone[0] + (vouch_zone[2] - vouch_zone[0] - vouch_width) // 2
-                vouch_y = vouch_zone[1] + (vouch_zone[3] - vouch_zone[1] - vouch_height) // 2
-                draw.text((vouch_x, vouch_y), vouch_text, fill=(255, 255, 255), font=vouch_font)
+                # Calculate zone dimensions
+                zone_width = vouch_zone[2] - vouch_zone[0]
+                zone_height = vouch_zone[3] - vouch_zone[1]
+                
+                # Center text both horizontally and vertically
+                vouch_x = vouch_zone[0] + (zone_width - vouch_width) // 2
+                vouch_y = vouch_zone[1] + (zone_height - vouch_height) // 2
+                
+                # Ensure text stays within bounds
+                if vouch_width > zone_width:
+                    scale_factor = zone_width / vouch_width * 0.9
+                    new_font_size = int(vouch_font_size * scale_factor)
+                    vouch_font = ImageFont.truetype(self.font_path, new_font_size) if os.path.exists(self.font_path) else ImageFont.load_default()
+                    vouch_bbox = vouch_font.getbbox(vouch_text)
+                    vouch_width = vouch_bbox[2] - vouch_bbox[0]
+                    vouch_height = vouch_bbox[3] - vouch_bbox[1]
+                    vouch_x = vouch_zone[0] + (zone_width - vouch_width) // 2
+                    vouch_y = vouch_zone[1] + (zone_height - vouch_height) // 2
+                
+                draw.text((vouch_x, vouch_y), vouch_text, fill=GP_TEXT_CONFIG['vouches']['color'], font=vouch_font)
             
             # Amount
             amount_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_amount'])
             if amount_zone:
                 amount_text = self.normalize_text(amount)
-                amount_font = ImageFont.truetype(self.font_path, 48) if os.path.exists(self.font_path) else ImageFont.load_default()
+                amount_font_size = GP_TEXT_CONFIG['amount']['font_size']
+                amount_font = ImageFont.truetype(self.font_path, amount_font_size) if os.path.exists(self.font_path) else ImageFont.load_default()
+                
+                # Get text dimensions
                 amount_bbox = amount_font.getbbox(amount_text)
                 amount_width = amount_bbox[2] - amount_bbox[0]
                 amount_height = amount_bbox[3] - amount_bbox[1]
                 
-                amount_x = amount_zone[0] + (amount_zone[2] - amount_zone[0] - amount_width) // 2
-                amount_y = amount_zone[1] + (amount_zone[3] - amount_zone[1] - amount_height) // 2
-                draw.text((amount_x, amount_y), amount_text, fill=(255, 255, 255), font=amount_font)
+                # Calculate zone dimensions
+                zone_width = amount_zone[2] - amount_zone[0]
+                zone_height = amount_zone[3] - amount_zone[1]
+                
+                # Center text both horizontally and vertically
+                amount_x = amount_zone[0] + (zone_width - amount_width) // 2
+                amount_y = amount_zone[1] + (zone_height - amount_height) // 2
+                
+                # Ensure text stays within bounds
+                if amount_width > zone_width:
+                    scale_factor = zone_width / amount_width * 0.9
+                    new_font_size = int(amount_font_size * scale_factor)
+                    amount_font = ImageFont.truetype(self.font_path, new_font_size) if os.path.exists(self.font_path) else ImageFont.load_default()
+                    amount_bbox = amount_font.getbbox(amount_text)
+                    amount_width = amount_bbox[2] - amount_bbox[0]
+                    amount_height = amount_bbox[3] - amount_bbox[1]
+                    amount_x = amount_zone[0] + (zone_width - amount_width) // 2
+                    amount_y = amount_zone[1] + (zone_height - amount_height) // 2
+                
+                draw.text((amount_x, amount_y), amount_text, fill=GP_TEXT_CONFIG['amount']['color'], font=amount_font)
             
             # Payment method
             payment_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_payment'])
             if payment_zone:
                 payment_text = self.normalize_text(payment_method)
-                payment_font = ImageFont.truetype(self.font_path, 36) if os.path.exists(self.font_path) else ImageFont.load_default()
+                payment_font_size = GP_TEXT_CONFIG['payment']['font_size']
+                payment_font = ImageFont.truetype(self.font_path, payment_font_size) if os.path.exists(self.font_path) else ImageFont.load_default()
+                
+                # Get text dimensions
                 payment_bbox = payment_font.getbbox(payment_text)
                 payment_width = payment_bbox[2] - payment_bbox[0]
                 payment_height = payment_bbox[3] - payment_bbox[1]
                 
-                payment_x = payment_zone[0] + (payment_zone[2] - payment_zone[0] - payment_width) // 2
-                payment_y = payment_zone[1] + (payment_zone[3] - payment_zone[1] - payment_height) // 2
-                draw.text((payment_x, payment_y), payment_text, fill=(255, 255, 255), font=payment_font)
+                # Calculate zone dimensions
+                zone_width = payment_zone[2] - payment_zone[0]
+                zone_height = payment_zone[3] - payment_zone[1]
+                
+                # Center text both horizontally and vertically
+                payment_x = payment_zone[0] + (zone_width - payment_width) // 2
+                payment_y = payment_zone[1] + (zone_height - payment_height) // 2
+                
+                # Ensure text stays within bounds
+                if payment_width > zone_width:
+                    scale_factor = zone_width / payment_width * 0.9
+                    new_font_size = int(payment_font_size * scale_factor)
+                    payment_font = ImageFont.truetype(self.font_path, new_font_size) if os.path.exists(self.font_path) else ImageFont.load_default()
+                    payment_bbox = payment_font.getbbox(payment_text)
+                    payment_width = payment_bbox[2] - payment_bbox[0]
+                    payment_height = payment_bbox[3] - payment_bbox[1]
+                    payment_x = payment_zone[0] + (zone_width - payment_width) // 2
+                    payment_y = payment_zone[1] + (zone_height - payment_height) // 2
+                
+                draw.text((payment_x, payment_y), payment_text, fill=GP_TEXT_CONFIG['payment']['color'], font=payment_font)
             
             # Convert to bytes
             final_buffer = io.BytesIO()
