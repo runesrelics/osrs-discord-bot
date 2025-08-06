@@ -214,20 +214,34 @@ class VouchCog(commands.Cog):
             topic="Vouch request ticket between users."
         )
         
-        # Create TicketActions view for vouch request
+        # Create custom view for vouch request tickets (no "Mark as Complete" button)
         from cogs.tickets import TicketActions
         
         # Create a dummy message for the ticket actions (since there's no listing)
         dummy_message = type('obj', (object,), {'id': 0})()
         
-        # Create ticket actions view
-        ticket_actions = TicketActions(
-            ticket_message=dummy_message,
-            listing_message=dummy_message,
-            account_message=dummy_message,
-            user1=ctx.author,
-            user2=user
-        )
+        # Create custom vouch request view
+        class VouchRequestView(discord.ui.View):
+            def __init__(self, user1, user2):
+                super().__init__(timeout=None)
+                self.users = {user1.id: user1, user2.id: user2}
+                self.ticket_actions = TicketActions(
+                    ticket_message=dummy_message,
+                    listing_message=dummy_message,
+                    account_message=dummy_message,
+                    user1=user1,
+                    user2=user2
+                )
+            
+            @discord.ui.button(label="❌ Cancel Request", style=discord.ButtonStyle.danger)
+            async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if interaction.user.id not in self.users:
+                    await interaction.response.send_message("You are not part of this vouch request.", ephemeral=True)
+                    return
+                await interaction.channel.send("❌ Vouch request has been cancelled.")
+                await self.ticket_actions.archive_ticket(interaction.channel)
+        
+        vouch_request_view = VouchRequestView(ctx.author, user)
         
         # Send initial message with ticket actions
         embed = discord.Embed(
@@ -246,12 +260,45 @@ class VouchCog(commands.Cog):
         if mod_role:
             admin_mentions += f"{mod_role.mention}"
         
-        await ticket_channel.send(f"{admin_mentions}\n{ctx.author.mention} {user.mention}", embed=embed, view=ticket_actions)
+        await ticket_channel.send(f"{admin_mentions}\n{ctx.author.mention} {user.mention}", embed=embed, view=vouch_request_view)
         
         await ctx.send(
             f"✅ Vouch request ticket created: {ticket_channel.mention}",
             ephemeral=True
         )
+
+    @commands.command(name="accept")
+    @commands.has_permissions(administrator=True)
+    async def accept_vouch_request(self, ctx):
+        """Accept a vouch request and start the vouching process (Admin only)"""
+        # Check if this is a vouch request ticket
+        if not ctx.channel.name.startswith("vouch-request-"):
+            await ctx.send("❌ This command can only be used in vouch request ticket channels.", ephemeral=True)
+            return
+        
+        # Find the vouch request view in the channel
+        vouch_request_view = None
+        async for message in ctx.channel.history(limit=50):
+            if message.components:
+                for view in message.components:
+                    if hasattr(view, 'ticket_actions') and hasattr(view, 'users'):
+                        vouch_request_view = view
+                        break
+                if vouch_request_view:
+                    break
+        
+        if not vouch_request_view:
+            await ctx.send("❌ Could not find vouch request actions in this ticket.", ephemeral=True)
+            return
+        
+        # Check if vouching has already started
+        if hasattr(vouch_request_view.ticket_actions, 'vouch_view') and vouch_request_view.ticket_actions.vouch_view:
+            await ctx.send("✅ Vouching process is already active. Please use the rating buttons above.", ephemeral=True)
+            return
+        
+        # Start the vouching process
+        await ctx.send("✅ Admin has approved this vouch request. Starting vouching process...")
+        await vouch_request_view.ticket_actions.start_vouching(ctx.channel)
 
     @commands.command(name="sync_commands")
     @commands.has_permissions(administrator=True)
