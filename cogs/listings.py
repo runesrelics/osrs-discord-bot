@@ -681,6 +681,18 @@ class ListingCog(commands.Cog, name="Listings"):
                 overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
         try:
+            # Find the listing messages in the current channel
+            # Look for the specific listing that was clicked (the interaction.message should be the one with buttons)
+            clicked_message = interaction.message
+            
+            # Check if this is a GP listing or account listing by looking at the attachments
+            is_gp_listing = False
+            if clicked_message.attachments:
+                for attachment in clicked_message.attachments:
+                    if "gp_listing.png" in attachment.filename:
+                        is_gp_listing = True
+                        break
+            
             # Get the tickets category
             tickets_category = interaction.guild.get_channel(1307491683461763132)
             
@@ -700,18 +712,6 @@ class ListingCog(commands.Cog, name="Listings"):
             # Send the listing images to the ticket for reference
             listing_msg = None
             account_msg = None
-            
-            # Find the listing messages in the current channel
-            # Look for the specific listing that was clicked (the interaction.message should be the one with buttons)
-            clicked_message = interaction.message
-            
-            # Check if this is a GP listing or account listing by looking at the attachments
-            is_gp_listing = False
-            if clicked_message.attachments:
-                for attachment in clicked_message.attachments:
-                    if "gp_listing.png" in attachment.filename:
-                        is_gp_listing = True
-                        break
             
             if is_gp_listing:
                 # GP listing - only one image
