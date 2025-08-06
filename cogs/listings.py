@@ -407,7 +407,8 @@ class AccountListingModal(Modal):
                 image_template = None
                 if self.is_edit_mode and self.existing_showcase_image:
                     # In edit mode, use the existing showcase image directly
-                    image_template = self.existing_showcase_image
+                    # Convert bytes to BytesIO object for Discord.File
+                    image_template = io.BytesIO(self.existing_showcase_image)
                 elif image_bytes_list:
                     try:
                         image_template = await embed_generator.generate_image_template(image_bytes_list)
