@@ -191,13 +191,7 @@ class VouchCog(commands.Cog):
             await ctx.send("❌ You cannot vouch with yourself.", ephemeral=True)
             return
         
-        # Create vouch request ticket
-        category = ctx.guild.get_channel(1395791949969231945)  # Archived tickets category
-        if not category:
-            await ctx.send("❌ Could not find tickets category.", ephemeral=True)
-            return
-        
-        # Create ticket channel
+        # Create ticket channel (same as GP and account tickets - no category specified)
         overwrites = {
             ctx.guild.default_role: discord.PermissionOverwrite(read_messages=False),
             ctx.author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
@@ -216,8 +210,8 @@ class VouchCog(commands.Cog):
         
         ticket_channel = await ctx.guild.create_text_channel(
             f"vouch-request-{ctx.author.name}-{user.name}",
-            category=category,
-            overwrites=overwrites
+            overwrites=overwrites,
+            topic="Vouch request ticket between users."
         )
         
         # Create TicketActions view for vouch request
