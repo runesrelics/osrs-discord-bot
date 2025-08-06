@@ -23,7 +23,14 @@ class EmbedGenerator:
             'vouches': (121, 119, 121), # #797779 - User vouches
             'image1': (252, 0, 6),      # #fc0006 - Image 1 location
             'image2': (0, 24, 255),     # #0018ff - Image 2 location
-            'image3': (156, 0, 255)     # #9c00ff - Image 3 location (changed from yellow)
+            'image3': (156, 0, 255),    # #9c00ff - Image 3 location (changed from yellow)
+            # GP Listing color mappings
+            'gp_pfp': (255, 255, 255),  # #ffffff - Discord user pfp
+            'gp_name': (128, 128, 128), # #808080 - Discord server name
+            'gp_price': (0, 29, 243),   # #001df3 - Price
+            'gp_vouches': (243, 114, 0), # #f37200 - Vouch count
+            'gp_amount': (0, 255, 255), # #00ffff - Amount
+            'gp_payment': (255, 0, 255) # #ff00ff - Payment method
         }
 
         # Create fonts directory if it doesn't exist
@@ -424,3 +431,139 @@ class EmbedGenerator:
             # If no image template, return the account details message
             listing_msg = await channel.send(files=[discord.File(account_template_file, filename="account_details.png")])
             return listing_msg, account_msg
+
+    async def generate_gp_listing_image(self, gp_type, user, price, amount, payment_method):
+        """Generate a GP listing image based on the template"""
+        try:
+            # Determine template based on GP type
+            template_name = f"GPLISTING_{gp_type.upper()}.png"
+            template_path = os.path.join(self.template_dir, template_name)
+            map_path = os.path.join(self.template_dir, "GPLISTING_MAP.png")
+            
+            if not os.path.exists(template_path):
+                raise FileNotFoundError(f"GP template file not found: {template_path}")
+            if not os.path.exists(map_path):
+                raise FileNotFoundError(f"GP map file not found: {map_path}")
+            
+            # Load template and map
+            template = Image.open(template_path).convert('RGBA')
+            map_image = Image.open(map_path).convert('RGBA')
+            
+            # Scale template to 800x1200 (HxW) for optimal Discord display
+            template = template.resize((1200, 800), Image.LANCZOS)
+            map_image = map_image.resize((1200, 800), Image.LANCZOS)
+            
+            # Load font
+            try:
+                font_large = ImageFont.truetype(self.font_path, 48)
+                font_medium = ImageFont.truetype(self.font_path, 36)
+                font_small = ImageFont.truetype(self.font_path, 24)
+            except OSError:
+                print("Font loading error: cannot open resource, using default font")
+                font_large = ImageFont.load_default()
+                font_medium = ImageFont.load_default()
+                font_small = ImageFont.load_default()
+            
+            # Get user vouches
+            vouches = self.get_user_vouches(user.id)
+            
+            # Download and process user avatar
+            avatar_bytes = await self.download_avatar(user.avatar)
+            if avatar_bytes:
+                avatar = Image.open(avatar_bytes).convert('RGBA')
+                avatar = avatar.resize((80, 80), Image.LANCZOS)
+                
+                # Create circular mask
+                mask = self.create_circular_mask((80, 80))
+                avatar.putalpha(mask)
+                
+                # Find PFP zone and paste
+                pfp_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_pfp'])
+                if pfp_zone:
+                    x_offset = pfp_zone[0] + (pfp_zone[2] - pfp_zone[0] - 80) // 2
+                    y_offset = pfp_zone[1] + (pfp_zone[3] - pfp_zone[1] - 80) // 2
+                    template.paste(avatar, (x_offset, y_offset), avatar)
+            
+            # Draw text elements
+            draw = ImageDraw.Draw(template)
+            
+            # User server name (100% larger than account listings)
+            name_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_name'])
+            if name_zone:
+                name_text = self.normalize_text(user.display_name)
+                name_font = ImageFont.truetype(self.font_path, 72) if os.path.exists(self.font_path) else ImageFont.load_default()
+                name_bbox = name_font.getbbox(name_text)
+                name_width = name_bbox[2] - name_bbox[0]
+                name_height = name_bbox[3] - name_bbox[1]
+                
+                name_x = name_zone[0] + (name_zone[2] - name_zone[0] - name_width) // 2
+                name_y = name_zone[1] + (name_zone[3] - name_zone[1] - name_height) // 2
+                draw.text((name_x, name_y), name_text, fill=(255, 255, 255), font=name_font)
+            
+            # Price
+            price_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_price'])
+            if price_zone:
+                price_text = f"${price}"  # Only show the price value
+                price_font = ImageFont.truetype(self.font_path, 48) if os.path.exists(self.font_path) else ImageFont.load_default()
+                price_bbox = price_font.getbbox(price_text)
+                price_width = price_bbox[2] - price_bbox[0]
+                price_height = price_bbox[3] - price_bbox[1]
+                
+                price_x = price_zone[0] + (price_zone[2] - price_zone[0] - price_width) // 2
+                price_y = price_zone[1] + (price_zone[3] - price_zone[1] - price_height) // 2
+                draw.text((price_x, price_y), price_text, fill=(255, 255, 255), font=price_font)
+            
+            # Vouch count (just the number)
+            vouch_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_vouches'])
+            if vouch_zone:
+                vouch_text = str(vouches)
+                vouch_font = ImageFont.truetype(self.font_path, 36) if os.path.exists(self.font_path) else ImageFont.load_default()
+                vouch_bbox = vouch_font.getbbox(vouch_text)
+                vouch_width = vouch_bbox[2] - vouch_bbox[0]
+                vouch_height = vouch_bbox[3] - vouch_bbox[1]
+                
+                vouch_x = vouch_zone[0] + (vouch_zone[2] - vouch_zone[0] - vouch_width) // 2
+                vouch_y = vouch_zone[1] + (vouch_zone[3] - vouch_zone[1] - vouch_height) // 2
+                draw.text((vouch_x, vouch_y), vouch_text, fill=(255, 255, 255), font=vouch_font)
+            
+            # Amount
+            amount_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_amount'])
+            if amount_zone:
+                amount_text = self.normalize_text(amount)
+                amount_font = ImageFont.truetype(self.font_path, 48) if os.path.exists(self.font_path) else ImageFont.load_default()
+                amount_bbox = amount_font.getbbox(amount_text)
+                amount_width = amount_bbox[2] - amount_bbox[0]
+                amount_height = amount_bbox[3] - amount_bbox[1]
+                
+                amount_x = amount_zone[0] + (amount_zone[2] - amount_zone[0] - amount_width) // 2
+                amount_y = amount_zone[1] + (amount_zone[3] - amount_zone[1] - amount_height) // 2
+                draw.text((amount_x, amount_y), amount_text, fill=(255, 255, 255), font=amount_font)
+            
+            # Payment method
+            payment_zone = self.find_color_zone(map_image, self.COLOR_MAPPINGS['gp_payment'])
+            if payment_zone:
+                payment_text = self.normalize_text(payment_method)
+                payment_font = ImageFont.truetype(self.font_path, 36) if os.path.exists(self.font_path) else ImageFont.load_default()
+                payment_bbox = payment_font.getbbox(payment_text)
+                payment_width = payment_bbox[2] - payment_bbox[0]
+                payment_height = payment_bbox[3] - payment_bbox[1]
+                
+                payment_x = payment_zone[0] + (payment_zone[2] - payment_zone[0] - payment_width) // 2
+                payment_y = payment_zone[1] + (payment_zone[3] - payment_zone[1] - payment_height) // 2
+                draw.text((payment_x, payment_y), payment_text, fill=(255, 255, 255), font=payment_font)
+            
+            # Convert to bytes
+            final_buffer = io.BytesIO()
+            template.save(final_buffer, format='PNG')
+            final_buffer.seek(0)
+            
+            return final_buffer
+            
+        except Exception as e:
+            print(f"Error generating GP listing image: {str(e)}")
+            raise
+
+    async def send_gp_listing(self, channel, gp_template_file):
+        """Send the GP listing to the channel"""
+        listing_msg = await channel.send(files=[discord.File(gp_template_file, filename="gp_listing.png")])
+        return listing_msg

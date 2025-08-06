@@ -548,7 +548,7 @@ class ListingCog(commands.Cog, name="Listings"):
                 return
 
             elif custom_id == "list_gp":
-                view = GPTypeSelectView(interaction.user)
+                view = GPTypeSelectView(interaction.user, self.CHANNELS)
                 await interaction.response.send_message(
                     "Please select if you are **BUYING** or **SELLING** OSRS GP:",
                     view=view,
@@ -613,6 +613,24 @@ class ListingCog(commands.Cog, name="Listings"):
         await ctx.send("🧹 Starting listing cleanup...")
         await self.cleanup_old_listings()
         await ctx.send("✅ Listing cleanup completed!")
+
+    @commands.command(name="test_gp")
+    @commands.has_permissions(administrator=True)
+    async def test_gp_listing(self, ctx):
+        """Test GP listing generation"""
+        try:
+            embed_generator = EmbedGenerator()
+            gp_template = await embed_generator.generate_gp_listing_image(
+                "BUYING",
+                ctx.author,
+                "0.18",
+                "2B",
+                "Crypto"
+            )
+            
+            await ctx.send("✅ GP listing test successful!", file=discord.File(gp_template, filename="test_gp_listing.png"))
+        except Exception as e:
+            await ctx.send(f"❌ GP listing test failed: {str(e)}")
 
 
 
@@ -915,17 +933,309 @@ class EditConfirmationView(View):
         
         await interaction.response.send_message("❌ Edit cancelled.", ephemeral=True)
 
+class GPListingModal(Modal):
+    def __init__(self, gp_type: str, channels: dict):
+        super().__init__(title=f"GP {gp_type.title()} Listing")
+        self.gp_type = gp_type
+        self.channels = channels
+        
+        self.price = TextInput(
+            label="Price per M",
+            placeholder="e.g. 0.18",
+            style=discord.TextStyle.short,
+            max_length=10,
+            required=True
+        )
+        
+        self.amount = TextInput(
+            label="Amount",
+            placeholder="e.g. 2B",
+            style=discord.TextStyle.short,
+            max_length=20,
+            required=True
+        )
+        
+        self.payment_method = TextInput(
+            label="Payment Method",
+            placeholder="e.g. Crypto/PayPal",
+            style=discord.TextStyle.short,
+            max_length=50,
+            required=True
+        )
+        
+        self.add_item(self.price)
+        self.add_item(self.amount)
+        self.add_item(self.payment_method)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # Determine channel based on user's trusted status
+            trusted = any("trusted" in role.name.lower() for role in interaction.user.roles)
+            # GP channels
+            trusted_gp_channel = 1393727788112154745
+            public_gp_channel = 1393727911743193239
+            target_channel_id = trusted_gp_channel if trusted else public_gp_channel
+            listing_channel = interaction.guild.get_channel(target_channel_id)
+            
+            if not listing_channel:
+                await interaction.followup.send("❌ Could not find the listing channel.", ephemeral=True)
+                return
+            
+            # Generate the GP listing image
+            embed_generator = EmbedGenerator()
+            gp_template = await embed_generator.generate_gp_listing_image(
+                self.gp_type,
+                interaction.user,
+                self.price.value,
+                self.amount.value,
+                self.payment_method.value
+            )
+            
+            # Send the listing
+            listing_msg = await embed_generator.send_gp_listing(listing_channel, gp_template)
+            
+            # Store listing data for future editing/bumping
+            listing_data = {
+                'gp_type': self.gp_type,
+                'price': self.price.value,
+                'amount': self.amount.value,
+                'payment_method': self.payment_method.value
+            }
+            listing_id = store_listing(
+                user_id=interaction.user.id,
+                channel_id=listing_channel.id,
+                account_message_id=listing_msg.id,
+                image_message_id=None,  # GP listings don't have separate image messages
+                account_image_bytes=gp_template,
+                showcase_images_bytes=None,
+                listing_data=listing_data
+            )
+            
+            # Add the listing controls
+            view = GPListingView(
+                lister=interaction.user, 
+                listing_message=listing_msg,
+                listing_id=listing_id,
+                channels=self.channels
+            )
+            await listing_msg.edit(view=view)
+            
+            await interaction.followup.send("✅ Your GP listing has been posted!", ephemeral=True)
+            
+        except Exception as e:
+            print(f"Error in GP listing on_submit: {str(e)}")
+            await interaction.followup.send(f"❌ Something went wrong: {str(e)}. Please try again.", ephemeral=True)
+            return
+
+class GPListingView(View):
+    def __init__(self, lister: discord.User, listing_message: discord.Message, listing_id: int = None, channels: dict = None):
+        super().__init__(timeout=None)
+        self.lister = lister
+        self.listing_message = listing_message
+        self.listing_id = listing_id
+        self.channels = channels or {}
+
+    @discord.ui.button(label="💼 Trade", style=discord.ButtonStyle.primary)
+    async def trade(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id == self.lister.id:
+            await interaction.response.send_message("❌ You cannot trade with yourself.", ephemeral=True)
+            return
+        
+        # Create ticket channel
+        ticket_channel = await interaction.guild.create_text_channel(
+            f"ticket-{interaction.user.name}-{self.lister.name}",
+            category=interaction.channel.category
+        )
+        
+        # Post the GP listing in the ticket
+        await ticket_channel.send(f"💼 **GP Trade Started** 💼\n\n{interaction.user.mention} wants to trade with {self.lister.mention}")
+        
+        # Send the GP listing image to the ticket
+        if self.listing_id:
+            listing = get_listing(self.listing_id)
+            if listing and listing.get('account_image_data'):
+                gp_image_bytes = listing['account_image_data']
+                gp_file = discord.File(io.BytesIO(gp_image_bytes), filename="gp_listing.png")
+                await ticket_channel.send(file=gp_file)
+        
+        # Add trade actions
+        ticket_actions = TicketActions(
+            ticket_message=ticket_channel,
+            listing_message=self.listing_message,
+            account_message=self.listing_message,  # For GP, both are the same
+            user1=interaction.user,
+            user2=self.lister
+        )
+        await ticket_channel.send("Choose an action:", view=ticket_actions)
+        
+        await interaction.response.send_message(f"✅ Trade ticket created: {ticket_channel.mention}", ephemeral=True)
+
+    @discord.ui.button(label="✏️ Edit", style=discord.ButtonStyle.secondary)
+    async def edit(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("❌ Only the lister can edit this listing.", ephemeral=True)
+            return
+        
+        # Show confirmation
+        view = GPEditConfirmationView(self, self.channels)
+        await interaction.response.send_message("Are you sure you want to edit this GP listing?", view=view, ephemeral=True)
+
+    @discord.ui.button(label="📈 Bump", style=discord.ButtonStyle.success)
+    async def bump(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("❌ Only the lister can bump this listing.", ephemeral=True)
+            return
+        
+        if not self.listing_id:
+            await interaction.response.send_message("❌ Could not find listing data for bumping.", ephemeral=True)
+            return
+        
+        # Check if can bump (48-hour cooldown)
+        if not can_bump_listing(self.listing_id):
+            await interaction.response.send_message("❌ You can only bump your listing once every 48 hours.", ephemeral=True)
+            return
+        
+        try:
+            # Get stored listing data
+            listing = get_listing(self.listing_id)
+            if not listing:
+                await interaction.response.send_message("❌ Could not find listing data for bumping.", ephemeral=True)
+                return
+            
+            # Delete old message
+            await self.listing_message.delete()
+            
+            # Re-send the listing using stored image data
+            if listing.get('account_image_data'):
+                gp_image_bytes = listing['account_image_data']
+                gp_file = discord.File(io.BytesIO(gp_image_bytes), filename="gp_listing.png")
+                new_listing_msg = await interaction.channel.send(file=gp_file)
+                
+                # Update the listing message reference
+                self.listing_message = new_listing_msg
+                
+                # Add the listing controls to the new message
+                view = GPListingView(
+                    lister=self.lister,
+                    listing_message=new_listing_msg,
+                    listing_id=self.listing_id,
+                    channels=self.channels
+                )
+                await new_listing_msg.edit(view=view)
+                
+                # Update database
+                update_listing_interaction(self.listing_id)
+                
+                await interaction.response.send_message("✅ Your GP listing has been bumped!", ephemeral=True)
+            else:
+                await interaction.response.send_message("❌ Could not retrieve listing image data.", ephemeral=True)
+                
+        except Exception as e:
+            print(f"Error bumping GP listing: {str(e)}")
+            await interaction.response.send_message(f"❌ Error bumping listing: {str(e)}", ephemeral=True)
+
+    @discord.ui.button(label="❌ Delete", style=discord.ButtonStyle.danger)
+    async def delete(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.lister.id:
+            await interaction.response.send_message("❌ Only the lister can delete this listing.", ephemeral=True)
+            return
+        
+        try:
+            # Delete the message
+            await self.listing_message.delete()
+            
+            # Mark as inactive in database
+            if self.listing_id:
+                delete_listing_from_db(self.listing_id)
+            
+            await interaction.response.send_message("✅ GP listing has been deleted.", ephemeral=True)
+            
+        except Exception as e:
+            print(f"Error deleting GP listing: {str(e)}")
+            await interaction.response.send_message(f"❌ Error deleting listing: {str(e)}", ephemeral=True)
+
+class GPEditConfirmationView(View):
+    def __init__(self, gp_listing_view, channels):
+        super().__init__(timeout=60)
+        self.gp_listing_view = gp_listing_view
+        self.channels = channels
+
+    @discord.ui.button(label="Yes, Edit Listing", style=discord.ButtonStyle.danger)
+    async def confirm_edit(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.gp_listing_view.lister.id:
+            await interaction.response.send_message("You can't use this button.", ephemeral=True)
+            return
+        
+        try:
+            # Get the stored listing data to pre-fill the modal BEFORE deleting
+            if self.gp_listing_view.listing_id:
+                try:
+                    listing = get_listing(self.gp_listing_view.listing_id)
+                    print(f"Debug: Retrieved GP listing {self.gp_listing_view.listing_id}: {listing is not None}")
+                    
+                    if listing and listing.get('listing_data'):
+                        listing_data = listing['listing_data']
+                        print(f"Debug: GP listing data keys: {list(listing_data.keys())}")
+                        
+                        # Delete old message
+                        await self.gp_listing_view.listing_message.delete()
+                        
+                        # Delete from database
+                        delete_listing_from_db(self.gp_listing_view.listing_id)
+                        
+                        # Open the modal with pre-filled data
+                        modal = GPListingModal(
+                            gp_type=listing_data.get('gp_type', 'BUYING'),
+                            channels=self.channels
+                        )
+                        
+                        # Pre-fill the text inputs
+                        modal.price.default = listing_data.get('price', '')
+                        modal.amount.default = listing_data.get('amount', '')
+                        modal.payment_method.default = listing_data.get('payment_method', '')
+                        
+                        # Send the modal directly without deferring
+                        await interaction.response.send_modal(modal)
+                        return
+                    else:
+                        print(f"Debug: No GP listing data found for ID {self.gp_listing_view.listing_id}")
+                        await interaction.response.send_message("❌ Could not retrieve GP listing data for editing. The listing may have been deleted or corrupted.", ephemeral=True)
+                        return
+                        
+                except Exception as e:
+                    print(f"Debug: Error retrieving GP listing {self.gp_listing_view.listing_id}: {str(e)}")
+                    await interaction.response.send_message(f"❌ Error retrieving GP listing data: {str(e)}", ephemeral=True)
+                    return
+            
+            # Fallback if no stored data
+            await interaction.response.send_message("❌ Could not retrieve GP listing data for editing.", ephemeral=True)
+            
+        except Exception as e:
+            print(f"Error editing GP listing: {str(e)}")
+            await interaction.followup.send(f"❌ Error editing GP listing: {str(e)}", ephemeral=True)
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel_edit(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.gp_listing_view.lister.id:
+            await interaction.response.send_message("You can't use this button.", ephemeral=True)
+            return
+        
+        await interaction.response.send_message("❌ Edit cancelled.", ephemeral=True)
+
 class GPTypeSelectView(discord.ui.View):
-    def __init__(self, user):
+    def __init__(self, user, channels):
         super().__init__(timeout=60)
         self.user = user
+        self.channels = channels
 
     @discord.ui.button(label="BUYING", style=discord.ButtonStyle.success)
     async def buying(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user:
             await interaction.response.send_message("Only you can select this.", ephemeral=True)
             return
-        await interaction.response.send_message("GP listings coming soon!", ephemeral=True)
+        await interaction.response.send_modal(GPListingModal("BUYING", self.channels))
         self.stop()
 
     @discord.ui.button(label="SELLING", style=discord.ButtonStyle.danger)
@@ -933,7 +1243,7 @@ class GPTypeSelectView(discord.ui.View):
         if interaction.user != self.user:
             await interaction.response.send_message("Only you can select this.", ephemeral=True)
             return
-        await interaction.response.send_message("GP listings coming soon!", ephemeral=True)
+        await interaction.response.send_modal(GPListingModal("SELLING", self.channels))
         self.stop()
 
 async def setup(bot):
