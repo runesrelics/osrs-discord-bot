@@ -2,9 +2,9 @@
 
 # Font sizes (significantly increased)
 FONT_SIZES = {
-    'username': 38,     # Very large for username
-    'price': 38,       # Large for price
-    'description': 40  # Medium for description
+    'username': 72,     # Very large for username
+    'price': 64,       # Large for price
+    'description': 52  # Medium for description
 }
 
 # Profile picture settings
@@ -35,7 +35,7 @@ TEXT_CONFIG = {
     },
     'account_type': {
         'position': (550, 1150),  # Position of account type label
-        'font_size': 45,          # Large font for account type
+        'font_size': 52,          # Large font for account type
         'color': (0, 255, 255),   # RGB color (cyan)
         'right_padding': 30,      # Padding from right edge
     }
@@ -71,7 +71,4 @@ GP_TEXT_CONFIG = {
         'font_size': GP_FONT_SIZES['payment'],
         'color': (255, 255, 255),  # White
     }
-
 }
-
-
